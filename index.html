@@ -1,212 +1,69 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Yatzy</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yatzy Game</title>
     <style>
-        body { margin: 0; background: #f2f2f2; font-family: Arial; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        canvas { background: white; border-radius: 16px; box-shadow: 0 15px 35px rgba(0,0,0,.25); width: 95vw; max-width: 1100px; }
+        body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; font-family: sans-serif; }
+        canvas { background: #fff; border: 4px solid #555; max-width: 95vw; max-height: 90vh; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<canvas id="game" width="1100" height="540"></canvas>
+    <canvas id="game"></canvas>
 
 <script>
-    const canvas = document.getElementById("game");
-    const ctx = canvas.getContext("2d");
+    window.onload = function() {
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
 
-    // Game States
-    const MENU = 0, PLAYER_SELECT = 1, PLAYING = 2, GAMEOVER = 3;
-    let state = MENU;
+        // Force dimensions
+        canvas.width = 1100;
+        canvas.height = 540;
 
-    // Game Variables
-    let username = localStorage.getItem("yatzyUser") || "";
-    let numPlayers = 1;
-    let pIdx = 0;
-    let dice = [1, 1, 1, 1, 1];
-    let kept = [false, false, false, false, false];
-    let rollsLeft = 2;
-    let rolling = false;
-    let rollFrames = 0;
-    let showLeaderboard = false;
-    let scores = [];
-    let leaderboard = [];
+        // Simple State
+        let state = "MENU";
+        let leaderboard = [];
+        
+        // Try to load data safely
+        try {
+            const saved = localStorage.getItem("yatzy_leaderboard");
+            if (saved) leaderboard = JSON.parse(saved);
+        } catch(e) { console.error("Storage error"); }
 
-    // Load leaderboard safely
-    try {
-        const saved = localStorage.getItem("yatzy_leaderboard");
-        if (saved) leaderboard = JSON.parse(saved);
-    } catch(e) { console.log("LB Load Error"); }
+        function draw() {
+            // Clear Background
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const colors = ["#3498db", "#e74c3c", "#2ecc71", "#9b59b6"];
-    const cats = ["1s", "2s", "3s", "4s", "5s", "6s", "3k", "4k", "FH", "SS", "LS", "YZ", "CH"];
-
-    function rollDie() { return Math.floor(Math.random() * 6) + 1; }
-
-    function startTurn() {
-        for (let i = 0; i < 5; i++) { if (!kept[i]) dice[i] = rollDie(); }
-        kept = [false, false, false, false, false];
-        rollsLeft = 2;
-    }
-
-    function getVal(c, d) {
-        let counts = {};
-        d.forEach(v => counts[v] = (counts[v] || 0) + 1);
-        let sum = d.reduce((a, b) => a + b, 0);
-        if (c.endsWith("s")) {
-            let n = parseInt(c);
-            return d.filter(x => x == n).length * n;
-        }
-        if (c == "3k") return Object.values(counts).some(v => v >= 3) ? sum : 0;
-        if (c == "4k") return Object.values(counts).some(v => v >= 4) ? sum : 0;
-        if (c == "FH") {
-            let v = Object.values(counts).sort();
-            return (v.toString() == "2,3" || v.includes(5)) ? 25 : 0;
-        }
-        if (c == "SS") {
-            let s = [[1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6]];
-            return s.some(a => a.every(x => d.includes(x))) ? 30 : 0;
-        }
-        if (c == "LS") {
-            let s = [...new Set(d)].sort((a,b)=>a-b);
-            return (s.length >= 5 && (s[4]-s[0] === 4)) ? 40 : 0;
-        }
-        if (c == "YZ") return new Set(d).size == 1 ? 50 : 0;
-        return sum;
-    }
-
-    function drawButton(x, y, w, h, text, color = "#ddd") {
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y, w, h);
-        ctx.strokeStyle = "#333";
-        ctx.strokeRect(x, y, w, h);
-        ctx.fillStyle = "black";
-        ctx.textAlign = "center";
-        ctx.fillText(text, x + w/2, y + h/2 + 5);
-        ctx.textAlign = "left";
-    }
-
-    canvas.onclick = e => {
-        const rect = canvas.getBoundingClientRect();
-        const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
-        const my = (e.clientY - rect.top) * (canvas.height / rect.height);
-
-        if (mx > 960 && mx < 1080 && my > 10 && my < 40) {
-            showLeaderboard = !showLeaderboard; return;
-        }
-
-        if (state == MENU) {
-            if (!username) {
-                username = prompt("Enter username:") || "Player";
-                localStorage.setItem("yatzyUser", username);
-            }
-            state = PLAYER_SELECT;
-        } else if (state == PLAYER_SELECT) {
-            for (let i = 1; i <= 4; i++) {
-                let y = 140 + i * 60;
-                if (mx > 460 && mx < 590 && my > y && my < y + 40) {
-                    numPlayers = i;
-                    scores = Array.from({length: i}, () => {
-                        let o = {}; cats.forEach(c => o[c] = null); return o;
-                    });
-                    pIdx = 0; startTurn(); state = PLAYING;
-                }
-            }
-        } else if (state == PLAYING) {
-            for (let i = 0; i < 5; i++) {
-                let x = 40 + i * 70;
-                if (mx > x && mx < x + 55 && my > 70 && my < 125) kept[i] = !kept[i];
-            }
-            if (mx > 400 && mx < 480 && my > 70 && my < 125 && rollsLeft > 0 && !rolling) {
-                rolling = true; rollFrames = 15; rollsLeft--;
-            }
-            if (mx > 900 && mx < 1040 && my > 70 && my < 120) state = MENU;
-
-            for (let i = 0; i < cats.length; i++) {
-                let x = 10 + i * 80;
-                let y = 220 + pIdx * 30;
-                if (mx > x && mx < x + 70 && my > y && my < y + 26) {
-                    if (scores[pIdx][cats[i]] == null) {
-                        scores[pIdx][cats[i]] = getVal(cats[i], dice);
-                        let finished = true;
-                        scores.forEach(p => cats.forEach(c => { if(p[c]==null) finished=false; }));
-                        if (finished) {
-                            let best = 0;
-                            scores.forEach((s, idx) => {
-                                let t = 0; cats.forEach(c => t += s[c]);
-                                if(t > best) best = t;
-                            });
-                            leaderboard.push({name: username, score: best});
-                            leaderboard.sort((a,b) => b.score - a.score);
-                            leaderboard = leaderboard.slice(0, 10);
-                            localStorage.setItem("yatzy_leaderboard", JSON.stringify(leaderboard));
-                            state = GAMEOVER;
-                        } else {
-                            pIdx = (pIdx + 1) % numPlayers; startTurn();
-                        }
-                    }
-                }
-            }
-        } else if (state == GAMEOVER) { state = MENU; }
-    };
-
-    function loop() {
-        if (rolling) {
-            rollFrames--;
-            for (let i = 0; i < 5; i++) if (!kept[i]) dice[i] = rollDie();
-            if (rollFrames <= 0) rolling = false;
-        }
-
-        ctx.clearRect(0, 0, 1100, 540);
-        ctx.font = "18px Arial";
-
-        if (state == MENU) {
-            ctx.font = "44px Arial";
-            ctx.fillStyle = "black";
-            ctx.fillText("Yatzy", 500, 120);
-            drawButton(480, 220, 140, 40, "PLAY");
-        } else if (state == PLAYER_SELECT) {
-            ctx.fillText("Select Players", 480, 80);
-            for (let i = 1; i <= 4; i++) drawButton(460, 140 + i * 60, 130, 40, i + " Players");
-        } else if (state == PLAYING) {
-            ctx.fillStyle = colors[pIdx];
-            ctx.fillText("Player: " + username + " | Rolls: " + rollsLeft, 40, 40);
-            drawButton(900, 70, 140, 40, "Restart");
-            for (let i = 0; i < 5; i++) drawButton(40 + i * 70, 70, 55, 55, dice[i], kept[i] ? "#c8f7c5" : "#fff");
-            drawButton(400, 70, 80, 55, "ROLL");
-
-            for (let i = 0; i < cats.length; i++) {
-                let x = 10 + i * 80;
+            if (state === "MENU") {
                 ctx.fillStyle = "black";
-                ctx.font = "12px Arial";
-                ctx.fillText(cats[i], x + 20, 210);
-                for (let p = 0; p < numPlayers; p++) {
-                    let y = 220 + p * 30;
-                    let val = scores[p][cats[i]];
-                    ctx.fillStyle = val != null ? colors[p] : (p == pIdx ? "#eee" : "#ccc");
-                    ctx.fillRect(x, y, 70, 26);
-                    ctx.strokeRect(x, y, 70, 26);
-                    ctx.fillStyle = "black";
-                    ctx.fillText(val != null ? val : (p == pIdx ? getVal(cats[i], dice) : "-"), x + 25, y + 18);
-                }
+                ctx.font = "bold 60px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("YATZY", 550, 200);
+
+                // Play Button
+                ctx.fillStyle = "#3498db";
+                ctx.fillRect(450, 300, 200, 60);
+                ctx.fillStyle = "white";
+                ctx.font = "30px Arial";
+                ctx.fillText("START", 550, 340);
             }
-        } else if (state == GAMEOVER) {
-            ctx.fillText("Game Over! Tap to return.", 450, 250);
+
+            requestAnimationFrame(draw);
         }
 
-        drawButton(960, 10, 120, 30, "Leaderboard");
-        if (showLeaderboard) {
-            ctx.fillStyle = "white"; ctx.fillRect(750, 60, 320, 380); ctx.strokeRect(750, 60, 320, 380);
-            ctx.fillStyle = "black"; ctx.fillText("High Scores", 850, 90);
-            leaderboard.forEach((e, i) => ctx.fillText((i + 1) + ". " + e.name + ": " + e.score, 780, 130 + i * 25));
-        }
+        canvas.onclick = function() {
+            if (state === "MENU") {
+                alert("Game starting! (Logic will load next)");
+                // You can set state to PLAYING here once confirmed working
+            }
+        };
 
-        requestAnimationFrame(loop);
-    }
-
-    loop();
+        // Start the loop
+        draw();
+        console.log("Game loop started");
+    };
 </script>
 </body>
 </html>

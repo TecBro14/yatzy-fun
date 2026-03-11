@@ -6,7 +6,6 @@
 <title>Advanced Yatzy</title>
 
 <style>
-
 body{
 margin:0;
 font-family:Arial;
@@ -22,8 +21,8 @@ background:white;
 border-radius:14px;
 box-shadow:0 10px 30px rgba(0,0,0,.2);
 }
-
 </style>
+
 </head>
 
 <body>
@@ -36,10 +35,10 @@ const canvas=document.getElementById("game")
 const ctx=canvas.getContext("2d")
 
 const MENU=0
-const PLAYING=1
-const GAME_OVER=2
+const PLAYER_SELECT=1
+const PLAYING=2
 
-let gameState=MENU
+let state=MENU
 
 let numPlayers=4
 let pIdx=0
@@ -111,17 +110,45 @@ return sum
 
 }
 
+function roundRect(x,y,w,h,r){
+
+ctx.beginPath()
+ctx.moveTo(x+r,y)
+ctx.lineTo(x+w-r,y)
+ctx.quadraticCurveTo(x+w,y,x+w,y+r)
+ctx.lineTo(x+w,y+h-r)
+ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h)
+ctx.lineTo(x+r,y+h)
+ctx.quadraticCurveTo(x,y+h,x,y+h-r)
+ctx.lineTo(x,y+r)
+ctx.quadraticCurveTo(x,y,x+r,y)
+ctx.closePath()
+ctx.fill()
+ctx.stroke()
+
+}
+
 canvas.onclick=e=>{
 
 let rect=canvas.getBoundingClientRect()
 let mx=e.clientX-rect.left
 let my=e.clientY-rect.top
 
-if(gameState==MENU){
+if(state==MENU){
+
+if(mx>440 && mx<560 && my>220 && my<260){
+state=PLAYER_SELECT
+}
+
+}
+
+else if(state==PLAYER_SELECT){
 
 for(let i=1;i<=4;i++){
 
-if(mx>440&&mx<560&&my>100+i*60&&my<140+i*60){
+let y=120+i*60
+
+if(mx>440 && mx<560 && my>y && my<y+40){
 
 numPlayers=i
 
@@ -133,7 +160,7 @@ scores.push(obj)
 }
 
 startTurn()
-gameState=PLAYING
+state=PLAYING
 
 }
 
@@ -141,19 +168,19 @@ gameState=PLAYING
 
 }
 
-else if(gameState==PLAYING){
+else if(state==PLAYING){
 
 for(let i=0;i<5;i++){
 
 let x=40+i*60
 
-if(mx>x&&mx<x+45&&my>60&&my<105){
+if(mx>x && mx<x+45 && my>60 && my<105){
 kept[i]=!kept[i]
 }
 
 }
 
-if(mx>350&&mx<430&&my>60&&my<105 && rollsLeft>0 && !rolling){
+if(mx>350 && mx<430 && my>60 && my<105 && rollsLeft>0 && !rolling){
 
 rolling=true
 rollTimer=18
@@ -165,7 +192,7 @@ for(let i=0;i<cats.length;i++){
 
 let x=10+i*60
 
-if(mx>x&&mx<x+55&&my>280&&my<420){
+if(mx>x && mx<x+55 && my>280 && my<420){
 
 let c=cats[i]
 
@@ -202,20 +229,10 @@ if(rollTimer<=0) rolling=false
 
 }
 
-function roundRect(x,y,w,h,r){
+function drawCentered(text,x,y,w){
 
-ctx.beginPath()
-ctx.moveTo(x+r,y)
-ctx.lineTo(x+w-r,y)
-ctx.quadraticCurveTo(x+w,y,x+w,y+r)
-ctx.lineTo(x+w,y+h-r)
-ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h)
-ctx.lineTo(x+r,y+h)
-ctx.quadraticCurveTo(x,y+h,x,y+h-r)
-ctx.lineTo(x,y+r)
-ctx.quadraticCurveTo(x,y,x+r,y)
-ctx.fill()
-ctx.stroke()
+let width=ctx.measureText(text).width
+ctx.fillText(text,x+w/2-width/2,y)
 
 }
 
@@ -223,24 +240,44 @@ function draw(){
 
 ctx.clearRect(0,0,1000,520)
 
-if(gameState==MENU){
+if(state==MENU){
 
-ctx.font="40px Arial"
-ctx.fillText("YATZY",440,60)
+ctx.font="42px Arial"
+ctx.fillStyle="black"
+ctx.fillText("YATZY",440,100)
+
+ctx.fillStyle="#ddd"
+roundRect(440,220,120,40,10)
+
+ctx.fillStyle="black"
+ctx.font="18px Arial"
+drawCentered("PLAY",440,246,120)
+
+}
+
+else if(state==PLAYER_SELECT){
+
+ctx.font="28px Arial"
+ctx.fillStyle="black"
+ctx.fillText("Select Players",400,80)
+
+ctx.font="16px Arial"
 
 for(let i=1;i<=4;i++){
 
+let y=120+i*60
+
 ctx.fillStyle="#ddd"
-roundRect(440,100+i*60,120,40,10)
+roundRect(440,y,120,40,10)
 
 ctx.fillStyle="black"
-ctx.fillText(i+" Player"+(i>1?"s":""),455,128+i*60)
+drawCentered(i+" Player"+(i>1?"s":""),440,y+25,120)
 
 }
 
 }
 
-else if(gameState==PLAYING){
+else if(state==PLAYING){
 
 ctx.fillStyle=colors[pIdx]
 ctx.font="18px Arial"
@@ -254,7 +291,6 @@ let shakeX=rolling&&!kept[i]?Math.random()*4-2:0
 let shakeY=rolling&&!kept[i]?Math.random()*4-2:0
 
 ctx.fillStyle=kept[i]?"#c8f7c5":"#fff"
-
 roundRect(x+shakeX,60+shakeY,45,45,8)
 
 ctx.fillStyle="black"
@@ -266,7 +302,8 @@ ctx.fillStyle="#ddd"
 roundRect(350,60,80,45,10)
 
 ctx.fillStyle="black"
-ctx.fillText("ROLL",370,88)
+ctx.font="16px Arial"
+drawCentered("ROLL",350,88,80)
 
 for(let i=0;i<cats.length;i++){
 
@@ -278,12 +315,12 @@ ctx.fillRect(x,280,55,140)
 ctx.strokeRect(x,280,55,140)
 
 ctx.fillStyle="black"
+ctx.font="14px Arial"
 ctx.fillText(cats[i],x+18,295)
 
 for(let p=0;p<numPlayers;p++){
 
 let val=scores[p][cats[i]]
-
 let disp="-"
 
 if(val!=null) disp=val
@@ -313,12 +350,9 @@ ctx.fillText("P"+(p+1)+": "+total,20+p*120,470)
 }
 
 function loop(){
-
 update()
 draw()
-
 requestAnimationFrame(loop)
-
 }
 
 loop()

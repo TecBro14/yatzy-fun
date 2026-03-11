@@ -2,68 +2,224 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Yatzy Game</title>
+    <title>Yatzy Pro: Global Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; font-family: sans-serif; }
-        canvas { background: #fff; border: 4px solid #555; max-width: 95vw; max-height: 90vh; cursor: pointer; }
+        :root {
+            --primary: #6366f1;
+            --secondary: #4338ca;
+            --bg: #0f172a;
+            --card: #ffffff;
+            --text: #1e293b;
+        }
+        body { margin: 0; background: var(--bg); display: flex; justify-content: center; align-items: center; height: 100vh; font-family: 'Inter', system-ui, sans-serif; overflow: hidden; }
+        canvas { background: var(--card); border-radius: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); max-width: 95vw; max-height: 90vh; }
     </style>
 </head>
 <body>
 
-    <canvas id="game"></canvas>
+<canvas id="game"></canvas>
 
 <script>
-    window.onload = function() {
-        const canvas = document.getElementById("game");
-        const ctx = canvas.getContext("2d");
+window.onload = function() {
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    canvas.width = 1100; canvas.height = 540;
 
-        // Force dimensions
-        canvas.width = 1100;
-        canvas.height = 540;
+    // --- State Management ---
+    const STATE = { MENU: 0, SELECT: 1, PLAYING: 2, OVER: 3 };
+    let currentState = STATE.MENU;
+    let showLeaderboard = false;
 
-        // Simple State
-        let state = "MENU";
-        let leaderboard = [];
-        
-        // Try to load data safely
-        try {
-            const saved = localStorage.getItem("yatzy_leaderboard");
-            if (saved) leaderboard = JSON.parse(saved);
-        } catch(e) { console.error("Storage error"); }
+    // Account Data (Persistent)
+    let userAccount = JSON.parse(localStorage.getItem("yatzy_account")) || { name: "", highscore: 0, id: Date.now() };
+    let globalLeaderboard = JSON.parse(localStorage.getItem("yatzy_global_mock")) || [];
 
-        function draw() {
-            // Clear Background
-            ctx.fillStyle = "white";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+    let players = []; 
+    let pIdx = 0;
+    let dice = [1, 2, 3, 4, 5];
+    let kept = [false, false, false, false, false];
+    let rollsLeft = 3;
+    let isRolling = false;
+    let rollTimer = 0;
 
-            if (state === "MENU") {
-                ctx.fillStyle = "black";
-                ctx.font = "bold 60px Arial";
-                ctx.textAlign = "center";
-                ctx.fillText("YATZY", 550, 200);
+    const cats = ["1s", "2s", "3s", "4s", "5s", "6s", "3k", "4k", "FH", "SS", "LS", "YZ", "CH"];
+    const colors = ["#6366f1", "#f43f5e", "#10b981", "#f59e0b"];
 
-                // Play Button
-                ctx.fillStyle = "#3498db";
-                ctx.fillRect(450, 300, 200, 60);
-                ctx.fillStyle = "white";
-                ctx.font = "30px Arial";
-                ctx.fillText("START", 550, 340);
-            }
+    // --- Game Logic ---
+    function getScore(cat, d) {
+        let counts = {}; d.forEach(v => counts[v] = (counts[v] || 0) + 1);
+        let sum = d.reduce((a, b) => a + b, 0);
+        let vals = Object.values(counts);
+        if (cat.endsWith("s")) return d.filter(x => x == parseInt(cat)).length * parseInt(cat);
+        if (cat === "3k") return vals.some(v => v >= 3) ? sum : 0;
+        if (cat === "4k") return vals.some(v => v >= 4) ? sum : 0;
+        if (cat === "FH") return (vals.includes(2) && vals.includes(3)) || vals.includes(5) ? 25 : 0;
+        if (cat === "SS") return /1234|2345|3456/.test([...new Set(d)].sort().join("")) ? 30 : 0;
+        if (cat === "LS") return /12345|23456/.test([...new Set(d)].sort().join("")) ? 40 : 0;
+        if (cat === "YZ") return vals.includes(5) ? 50 : 0;
+        return sum;
+    }
 
-            requestAnimationFrame(draw);
+    function updateGlobalLeaderboard(finalScore) {
+        // Update local account best
+        if (finalScore > userAccount.highscore) {
+            userAccount.highscore = finalScore;
+            localStorage.setItem("yatzy_account", JSON.stringify(userAccount));
         }
 
-        canvas.onclick = function() {
-            if (state === "MENU") {
-                alert("Game starting! (Logic will load next)");
-                // You can set state to PLAYING here once confirmed working
-            }
-        };
+        // Update global list (preventing duplicates)
+        let existingUser = globalLeaderboard.find(u => u.id === userAccount.id);
+        if (existingUser) {
+            existingUser.score = Math.max(existingUser.score, finalScore);
+            existingUser.name = userAccount.name;
+        } else {
+            globalLeaderboard.push({ id: userAccount.id, name: userAccount.name, score: finalScore });
+        }
+        
+        globalLeaderboard.sort((a, b) => b.score - a.score);
+        globalLeaderboard = globalLeaderboard.slice(0, 10);
+        localStorage.setItem("yatzy_global_mock", JSON.stringify(globalLeaderboard));
+    }
 
-        // Start the loop
-        draw();
-        console.log("Game loop started");
+    // --- Drawing Functions ---
+    function drawBtn(x, y, w, h, txt, color, active = true) {
+        ctx.fillStyle = active ? color : "#cbd5e1";
+        ctx.beginPath(); ctx.roundRect(x, y, w, h, 12); ctx.fill();
+        ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "bold 16px Inter";
+        ctx.fillText(txt, x + w/2, y + h/2 + 6);
+    }
+
+    function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (currentState === STATE.MENU) {
+            ctx.fillStyle = varColor("--bg");
+            ctx.font = "bold 90px Inter"; ctx.textAlign = "center";
+            ctx.fillText("YATZY", 550, 220);
+            
+            ctx.font = "20px Inter"; ctx.fillStyle = "#64748b";
+            ctx.fillText(userAccount.name ? `Welcome back, ${userAccount.name}` : "Create an account to play", 550, 260);
+            
+            drawBtn(450, 310, 200, 60, "START GAME", "#6366f1");
+            drawBtn(450, 385, 200, 50, "LEADERBOARD", "#1e293b");
+        }
+
+        else if (currentState === STATE.PLAYING) {
+            // Player info bar
+            ctx.fillStyle = "#f8fafc"; ctx.fillRect(0,0,1100,70);
+            ctx.fillStyle = colors[pIdx]; ctx.textAlign = "left"; ctx.font = "bold 22px Inter";
+            ctx.fillText(userAccount.name.toUpperCase(), 40, 42);
+            
+            // Dice
+            dice.forEach((v, i) => {
+                let dx = 320 + i * 90, dy = 100;
+                let offset = isRolling && !kept[i] ? Math.random() * 8 : 0;
+                ctx.fillStyle = kept[i] ? "#dcfce7" : "#fff";
+                ctx.strokeStyle = kept[i] ? "#22c55e" : "#e2e8f0";
+                ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.roundRect(dx, dy + offset, 70, 70, 15); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = "#1e293b"; ctx.font = "bold 35px Inter"; ctx.textAlign = "center";
+                ctx.fillText(v, dx + 35, dy + 48 + offset);
+            });
+
+            drawBtn(780, 105, 120, 60, isRolling ? "..." : "ROLL", "#6366f1", rollsLeft > 0);
+            ctx.fillStyle = "#94a3b8"; ctx.font = "14px Inter";
+            ctx.fillText(`${rollsLeft} rolls left`, 840, 185);
+
+            // Scoring Table
+            cats.forEach((c, i) => {
+                let x = 40 + i * 81;
+                ctx.fillStyle = "#475569"; ctx.font = "bold 13px Inter"; ctx.fillText(c, x + 35, 250);
+                players.forEach((p, pI) => {
+                    let y = 270 + pI * 50;
+                    let val = p.scores[c];
+                    ctx.fillStyle = val !== null ? colors[pI] : (pI === pIdx ? "#f1f5f9" : "#f8fafc");
+                    ctx.beginPath(); ctx.roundRect(x, y, 70, 40, 8); ctx.fill();
+                    ctx.fillStyle = val !== null ? "white" : "#cbd5e1";
+                    ctx.fillText(val !== null ? val : getScore(c, dice), x + 35, y + 25);
+                });
+            });
+        }
+
+        if (showLeaderboard) {
+            ctx.fillStyle = "rgba(15, 23, 42, 0.85)"; ctx.fillRect(0,0,1100,540);
+            ctx.fillStyle = "white"; ctx.beginPath(); ctx.roundRect(350, 50, 400, 440, 20); ctx.fill();
+            ctx.fillStyle = "#1e293b"; ctx.font = "bold 28px Inter"; ctx.fillText("Global Top 10", 550, 100);
+            
+            globalLeaderboard.forEach((entry, i) => {
+                ctx.textAlign = "left"; ctx.font = "18px Inter";
+                ctx.fillStyle = entry.id === userAccount.id ? "#6366f1" : "#475569";
+                ctx.fillText(`${i+1}. ${entry.name}`, 390, 150 + i * 35);
+                ctx.textAlign = "right"; ctx.fillText(entry.score, 710, 150 + i * 35);
+            });
+            drawBtn(450, 420, 200, 45, "CLOSE", "#ef4444");
+        }
+
+        requestAnimationFrame(() => {
+            if (isRolling) {
+                rollTimer--;
+                dice.forEach((v, i) => { if (!kept[i]) dice[i] = Math.floor(Math.random() * 6) + 1; });
+                if (rollTimer <= 0) isRolling = false;
+            }
+            render();
+        });
+    }
+
+    function varColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name); }
+
+    canvas.onclick = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+        const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+        if (showLeaderboard) {
+            if (mx > 450 && mx < 650 && my > 420 && my < 465) showLeaderboard = false;
+            return;
+        }
+
+        if (currentState === STATE.MENU) {
+            if (mx > 450 && mx < 650 && my > 385 && my < 435) showLeaderboard = true;
+            if (mx > 450 && mx < 650 && my > 310 && my < 370) {
+                if (!userAccount.name) {
+                    userAccount.name = prompt("Enter Username (Account will stay logged in):") || "Player";
+                    localStorage.setItem("yatzy_account", JSON.stringify(userAccount));
+                }
+                currentState = STATE.SELECT;
+            }
+        }
+        else if (currentState === STATE.SELECT) {
+            players = [{ scores: Object.fromEntries(cats.map(c => [c, null])) }];
+            pIdx = 0; rollsLeft = 3; currentState = STATE.PLAYING;
+        }
+        else if (currentState === STATE.PLAYING) {
+            dice.forEach((v, i) => {
+                if (mx > 320 + i * 90 && mx < 390 + i * 90 && my > 100 && my < 170) kept[i] = !kept[i];
+            });
+            if (mx > 780 && mx < 900 && my > 105 && my < 165 && rollsLeft > 0 && !isRolling) {
+                isRolling = true; rollTimer = 20; rollsLeft--;
+            }
+            cats.forEach((c, i) => {
+                let x = 40 + i * 81, y = 270 + pIdx * 50;
+                if (mx > x && mx < x + 70 && my > y && my < y + 40 && players[pIdx].scores[c] === null) {
+                    players[pIdx].scores[c] = getScore(c, dice);
+                    let done = cats.every(cat => players[0].scores[cat] !== null);
+                    if (done) {
+                        let total = cats.reduce((s, cat) => s + players[0].scores[cat], 0);
+                        updateGlobalLeaderboard(total);
+                        alert(`Game Over! Final Score: ${total}`);
+                        currentState = STATE.MENU;
+                    } else {
+                        rollsLeft = 3; kept = [false, false, false, false, false];
+                        isRolling = true; rollTimer = 20;
+                    }
+                }
+            });
+        }
     };
+
+    render();
+};
 </script>
 </body>
 </html>

@@ -44,15 +44,13 @@ const PLAYING=2
 let state=MENU
 
 let username=""
-let numPlayers=4
+let numPlayers=1
 let pIdx=0
 
 let dice=[1,2,3,4,5]
 let kept=[false,false,false,false,false]
 
 let rollsLeft=2
-let rolling=false
-let rollTimer=0
 
 const colors=["#3498db","#e74c3c","#2ecc71","#9b59b6"]
 
@@ -60,41 +58,13 @@ const cats=["1s","2s","3s","4s","5s","6s","3k","4k","FH","SS","LS","YZ","CH"]
 
 let scores=[]
 
-let leaderboard=[]
-
-async function loadLeaderboard(){
-
-try{
-
-const res=await fetch("leaderboard.json")
-
-leaderboard=await res.json()
-
-leaderboard.sort((a,b)=>b.score-a.score)
-
-leaderboard=leaderboard.slice(0,10)
-
-}catch(e){
-
-leaderboard=[]
-
-}
-
-}
-
 function rollDie(){
-
 return Math.floor(Math.random()*6)+1
-
 }
 
 function startTurn(){
 
 for(let i=0;i<5;i++) dice[i]=rollDie()
-
-while(new Set(dice).size==1){
-for(let i=0;i<5;i++) dice[i]=rollDie()
-}
 
 kept=[false,false,false,false,false]
 
@@ -169,17 +139,11 @@ if(state==MENU){
 let savedUser=localStorage.getItem("yatzyUser")
 
 if(savedUser){
-
 username=savedUser
-
 }else{
-
 username=prompt("Enter username:")
-
 if(!username) username="Player"
-
 localStorage.setItem("yatzyUser",username)
-
 }
 
 state=PLAYER_SELECT
@@ -201,9 +165,7 @@ scores=[]
 for(let p=0;p<numPlayers;p++){
 
 let obj={}
-
 cats.forEach(c=>obj[c]=null)
-
 scores.push(obj)
 
 }
@@ -234,15 +196,17 @@ kept[i]=!kept[i]
 
 if(mx>400 && mx<480 && my>70 && my<125 && rollsLeft>0){
 
-rolling=true
+for(let i=0;i<5;i++){
 
-rollTimer=18
+if(!kept[i]) dice[i]=rollDie()
+
+}
 
 rollsLeft--
 
 }
 
-if(mx>950 && mx<1050 && my>20 && my<50){
+if(mx>900 && mx<1040 && my>70 && my<120){
 
 state=MENU
 
@@ -252,7 +216,7 @@ for(let i=0;i<cats.length;i++){
 
 let x=10+i*70
 
-if(mx>x && mx<x+60 && my>300 && my<440){
+if(mx>x && mx<x+60 && my>200 && my<300){
 
 let c=cats[i]
 
@@ -274,24 +238,6 @@ startTurn()
 
 }
 
-function update(){
-
-if(rolling){
-
-rollTimer--
-
-for(let i=0;i<5;i++){
-
-if(!kept[i]) dice[i]=rollDie()
-
-}
-
-if(rollTimer<=0) rolling=false
-
-}
-
-}
-
 function draw(){
 
 ctx.clearRect(0,0,1100,540)
@@ -299,45 +245,20 @@ ctx.clearRect(0,0,1100,540)
 if(state==MENU){
 
 ctx.font="42px Arial"
-
 ctx.fillText("Yatzy-Fun",450,100)
 
 ctx.fillStyle="#ddd"
-
 roundRect(480,220,140,40,10)
 
 ctx.fillStyle="black"
-
 ctx.font="18px Arial"
-
 ctx.fillText("PLAY",525,245)
-
-/* leaderboard */
-
-ctx.font="20px Arial"
-
-ctx.fillText("Leaderboard",820,120)
-
-ctx.font="16px Arial"
-
-for(let i=0;i<leaderboard.length;i++){
-
-let e=leaderboard[i]
-
-ctx.fillText(
-(i+1)+". "+e.name+" - "+e.score,
-800,
-150+i*26
-)
-
-}
 
 }
 
 else if(state==PLAYER_SELECT){
 
 ctx.font="28px Arial"
-
 ctx.fillText("Select Players",430,80)
 
 for(let i=1;i<=4;i++){
@@ -345,13 +266,10 @@ for(let i=1;i<=4;i++){
 let y=140+i*60
 
 ctx.fillStyle="#ddd"
-
 roundRect(460,y,130,40,10)
 
 ctx.fillStyle="black"
-
 ctx.font="16px Arial"
-
 ctx.fillText(i+" Player"+(i>1?"s":""),485,y+25)
 
 }
@@ -361,20 +279,16 @@ ctx.fillText(i+" Player"+(i>1?"s":""),485,y+25)
 else if(state==PLAYING){
 
 ctx.fillStyle=colors[pIdx]
-
 ctx.font="18px Arial"
+ctx.fillText("Player: "+username,40,30)
 
-ctx.fillText("Player: "+username,850,30)
-
-ctx.fillText("P"+(pIdx+1)+" TURN | ROLLS: "+rollsLeft,40,30)
+ctx.fillText("Rolls Left: "+rollsLeft,40,50)
 
 ctx.fillStyle="#ddd"
-
-roundRect(950,20,100,30,8)
+roundRect(900,70,140,40,10)
 
 ctx.fillStyle="black"
-
-ctx.fillText("Restart",970,40)
+ctx.fillText("Restart",940,95)
 
 for(let i=0;i<5;i++){
 
@@ -385,54 +299,47 @@ ctx.fillStyle=kept[i]?"#c8f7c5":"#fff"
 roundRect(x,70,55,55,10)
 
 ctx.fillStyle="black"
-
 ctx.font="20px Arial"
-
 ctx.fillText(dice[i],x+22,105)
 
 }
 
 ctx.fillStyle="#ddd"
-
 roundRect(400,70,80,55,10)
 
 ctx.fillStyle="black"
-
 ctx.fillText("ROLL",415,105)
-
-/* scoring chart */
 
 ctx.font="14px Arial"
 
 for(let i=0;i<cats.length;i++){
 
-let x=10+i*70
+let x=10+i*80
 
 for(let p=0;p<numPlayers;p++){
 
 let val=scores[p][cats[i]]
 
-let y=320+p*25
+let y=220+p*30
 
-ctx.fillStyle=val!=null?colors[p]:"#f0f0f0"
+ctx.fillStyle=val!=null?colors[p]:"#e5e5e5"
 
-ctx.fillRect(x,y,60,24)
+ctx.fillRect(x,y,70,26)
 
-ctx.strokeRect(x,y,60,24)
+ctx.strokeRect(x,y,70,26)
 
 ctx.fillStyle="black"
 
 let disp="-"
 
 if(val!=null) disp=val
-
 else if(p==pIdx) disp=getVal(cats[i],dice)
 
-ctx.fillText(disp,x+22,y+17)
+ctx.fillText(disp,x+28,y+18)
 
 }
 
-ctx.fillText(cats[i],x+20,310)
+ctx.fillText(cats[i],x+28,210)
 
 }
 
@@ -442,15 +349,10 @@ ctx.fillText(cats[i],x+20,310)
 
 function loop(){
 
-update()
-
 draw()
-
 requestAnimationFrame(loop)
 
 }
-
-loadLeaderboard()
 
 loop()
 

@@ -9,96 +9,56 @@
 
 body{
 margin:0;
-font-family:Arial, sans-serif;
+font-family:Arial;
 background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
 height:100vh;
 display:flex;
 justify-content:center;
 align-items:center;
-color:white;
-}
-
-#container{
-text-align:center;
 }
 
 canvas{
-background:rgba(255,255,255,.15);
-backdrop-filter:blur(18px);
-border-radius:20px;
-box-shadow:0 25px 60px rgba(0,0,0,.6);
-border:1px solid rgba(255,255,255,.3);
-}
-
-h1{
-margin-bottom:10px;
-letter-spacing:3px;
-text-shadow:0 0 20px rgba(255,255,255,.6);
+background:rgba(255,255,255,.2);
+backdrop-filter:blur(14px);
+border-radius:18px;
+box-shadow:0 20px 50px rgba(0,0,0,.6);
 }
 
 </style>
-
 </head>
 
 <body>
 
-<div id="container">
-<h1>ADVANCED YATZY</h1>
-<canvas id="game" width="950" height="540"></canvas>
-</div>
+<canvas id="game" width="900" height="520"></canvas>
 
 <script>
 
 const canvas=document.getElementById("game")
 const ctx=canvas.getContext("2d")
 
-const W=canvas.width
-const H=canvas.height
-
-const colors=["#3a7bff","#ff3a3a","#2ecc71","#b43aff"]
-
 const MENU=0
 const PLAYER_SELECT=1
 const PLAYING=2
-const GAME_OVER=3
 
-let gameState=MENU
-let numPlayers=4
-let pIdx=0
+let state=MENU
 
 let dice=[1,2,3,4,5]
 let kept=[false,false,false,false,false]
 
-let rollsLeft=2
+let rolls=2
 let rolling=false
 let rollTimer=0
 
-const cats=["1s","2s","3s","4s","5s","6s","3k","4k","FH","SS","LS","YZ","CH"]
-
-let scores=[]
-
-function rollDie(){
+function roll(){
 return Math.floor(Math.random()*6)+1
 }
 
-function startTurn(){
+function drawButton(x,y,w,h,text){
 
-for(let i=0;i<5;i++) dice[i]=rollDie()
-
-while(new Set(dice).size==1){
-for(let i=0;i<5;i++) dice[i]=rollDie()
-}
-
-kept=[false,false,false,false,false]
-rollsLeft=2
-}
-
-function drawGlassButton(x,y,w,h,text){
-
-ctx.fillStyle="rgba(255,255,255,.2)"
+ctx.fillStyle="rgba(255,255,255,.3)"
 ctx.fillRect(x,y,w,h)
 
-ctx.strokeStyle="rgba(255,255,255,.5)"
+ctx.strokeStyle="white"
 ctx.strokeRect(x,y,w,h)
 
 ctx.fillStyle="white"
@@ -107,172 +67,152 @@ ctx.fillText(text,x+w/2-ctx.measureText(text).width/2,y+28)
 
 }
 
-function drawDie(x,y,val,highlight){
+function drawDice(x,y,val,keep){
 
 ctx.save()
 
-if(highlight){
-ctx.shadowColor="#4cff4c"
+if(keep){
+ctx.shadowColor="#00ff88"
 ctx.shadowBlur=20
 }
 
 ctx.fillStyle="white"
-ctx.fillRect(x,y,70,70)
-ctx.strokeRect(x,y,70,70)
+ctx.fillRect(x,y,60,60)
+ctx.strokeRect(x,y,60,60)
 
 ctx.fillStyle="black"
-
-const pip=(px,py)=>{
-ctx.beginPath()
-ctx.arc(x+px,y+py,6,0,Math.PI*2)
-ctx.fill()
-}
-
-let c=35
-
-switch(val){
-
-case 1:pip(c,c);break
-
-case 2:pip(20,20);pip(50,50);break
-
-case 3:pip(20,20);pip(c,c);pip(50,50);break
-
-case 4:pip(20,20);pip(50,20);pip(20,50);pip(50,50);break
-
-case 5:pip(20,20);pip(50,20);pip(c,c);pip(20,50);pip(50,50);break
-
-case 6:pip(20,18);pip(50,18);pip(20,35);pip(50,35);pip(20,52);pip(50,52);break
-
-}
+ctx.font="22px Arial"
+ctx.fillText(val,x+25,y+38)
 
 ctx.restore()
 
 }
 
-canvas.addEventListener("click",e=>{
+canvas.onclick=e=>{
 
 let rect=canvas.getBoundingClientRect()
 let mx=e.clientX-rect.left
 let my=e.clientY-rect.top
 
-if(gameState==MENU){
+if(state==MENU){
 
-if(mx>W/2-80 && mx<W/2+80 && my>240 && my<290){
-gameState=PLAYER_SELECT
+if(mx>350&&mx<550&&my>240&&my<290){
+state=PLAYER_SELECT
 }
 
 }
 
-else if(gameState==PLAYER_SELECT){
+else if(state==PLAYER_SELECT){
 
 for(let i=1;i<=4;i++){
 
-let bx=W/2-80
-let by=150+i*70
+let y=160+i*60
 
-if(mx>bx&&mx<bx+160&&my>by&&my<by+45){
-
-numPlayers=i
-
-scores=[]
-for(let p=0;p<numPlayers;p++){
-let obj={}
-cats.forEach(c=>obj[c]=null)
-scores.push(obj)
-}
-
-startTurn()
-gameState=PLAYING
-
+if(mx>350&&mx<550&&my>y&&my<y+40){
+state=PLAYING
 }
 
 }
 
 }
 
-else if(gameState==PLAYING){
+else if(state==PLAYING){
 
 for(let i=0;i<5;i++){
-let x=120+i*140
-if(mx>x&&mx<x+70&&my>120&&my<190){
+
+let x=140+i*120
+
+if(mx>x&&mx<x+60&&my>120&&my<180){
 kept[i]=!kept[i]
 }
+
 }
 
-if(mx>760&&mx<860&&my>120&&my<190&&rollsLeft>0&&!rolling){
+if(mx>740&&mx<840&&my>120&&my<180&&rolls>0&&!rolling){
+
 rolling=true
-rollTimer=25
-rollsLeft--
+rollTimer=20
+rolls--
+
+}
+
 }
 
 }
 
-})
-
-function draw(){
-
-ctx.clearRect(0,0,W,H)
+function update(){
 
 if(rolling){
 
 rollTimer--
 
 for(let i=0;i<5;i++){
-if(!kept[i]) dice[i]=rollDie()
+if(!kept[i]) dice[i]=roll()
 }
 
-if(rollTimer<=0) rolling=false
+if(rollTimer<=0){
+rolling=false
 }
 
-if(gameState==MENU){
+}
 
-ctx.font="50px Arial"
+}
+
+function draw(){
+
+ctx.clearRect(0,0,900,520)
+
+if(state==MENU){
+
 ctx.fillStyle="white"
-ctx.fillText("YATZY",W/2-80,140)
+ctx.font="48px Arial"
+ctx.fillText("YATZY",360,150)
 
-drawGlassButton(W/2-80,240,160,50,"PLAY")
+drawButton(350,240,200,50,"PLAY")
 
 }
 
-else if(gameState==PLAYER_SELECT){
+else if(state==PLAYER_SELECT){
 
-ctx.font="36px Arial"
-ctx.fillText("Select Players",W/2-140,100)
+ctx.fillStyle="white"
+ctx.font="32px Arial"
+ctx.fillText("Select Players",330,120)
 
 for(let i=1;i<=4;i++){
-drawGlassButton(W/2-80,150+i*70,160,45,i+" Player"+(i>1?"s":""))
+drawButton(350,160+i*60,200,40,i+" Player"+(i>1?"s":""))
 }
 
 }
 
-else if(gameState==PLAYING){
+else if(state==PLAYING){
 
-ctx.fillStyle=colors[pIdx]
-ctx.font="22px Arial"
-ctx.fillText("Player "+(pIdx+1)+" Turn | Rolls: "+rollsLeft,40,60)
+ctx.fillStyle="white"
+ctx.font="20px Arial"
+ctx.fillText("Rolls Left: "+rolls,50,60)
 
 for(let i=0;i<5;i++){
 
-let x=120+i*140
-let y=120
-
+let x=140+i*120
 let shakeX=rolling&&!kept[i]?Math.random()*6-3:0
 let shakeY=rolling&&!kept[i]?Math.random()*6-3:0
 
-drawDie(x+shakeX,y+shakeY,dice[i],kept[i])
+drawDice(x+shakeX,120+shakeY,dice[i],kept[i])
 
 }
 
-drawGlassButton(760,120,100,70,"ROLL")
+drawButton(740,120,100,60,"ROLL")
 
 }
 
-requestAnimationFrame(draw)
-
 }
 
+function loop(){
+update()
 draw()
+requestAnimationFrame(loop)
+}
+
+loop()
 
 </script>
 

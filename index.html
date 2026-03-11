@@ -1,9 +1,9 @@
-```html
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <title>Yatzy-Fun</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
 
@@ -21,6 +21,12 @@ canvas{
 background:white;
 border-radius:14px;
 box-shadow:0 15px 40px rgba(0,0,0,.25);
+
+/* makes it bigger on phones */
+width:95vw;
+max-width:1000px;
+height:auto;
+
 }
 
 </style>
@@ -35,6 +41,7 @@ box-shadow:0 15px 40px rgba(0,0,0,.25);
 
 const canvas=document.getElementById("game")
 const ctx=canvas.getContext("2d")
+ctx.imageSmoothingEnabled=true
 
 const MENU=0
 const PLAYER_SELECT=1
@@ -139,11 +146,19 @@ ctx.stroke()
 
 }
 
-canvas.onclick=e=>{
+canvas.addEventListener("click",handleClick)
+canvas.addEventListener("touchstart",e=>{
+handleClick(e.touches[0])
+})
+
+function handleClick(e){
 
 let rect=canvas.getBoundingClientRect()
-let mx=e.clientX-rect.left
-let my=e.clientY-rect.top
+let scaleX=canvas.width/rect.width
+let scaleY=canvas.height/rect.height
+
+let mx=(e.clientX-rect.left)*scaleX
+let my=(e.clientY-rect.top)*scaleY
 
 if(state==MENU){
 
@@ -324,5 +339,71 @@ roundRect(350,60,80,45,10)
 
 ctx.fillStyle="black"
 ctx.font="16px Arial"
-drawCentered
-```
+drawCentered("ROLL",350,88,80)
+
+for(let i=0;i<cats.length;i++){
+
+let x=10+i*60
+
+for(let p=0;p<numPlayers;p++){
+
+let val=scores[p][cats[i]]
+let y=300+p*25
+
+if(val!=null){
+ctx.fillStyle=colors[p]
+}else if(p==pIdx){
+ctx.fillStyle="#d0d0d0"
+}else{
+ctx.fillStyle="#ffffff"
+}
+
+ctx.fillRect(x,y,55,24)
+ctx.strokeRect(x,y,55,24)
+
+ctx.fillStyle="black"
+
+let disp="-"
+
+if(val!=null) disp=val
+else if(p==pIdx) disp=getVal(cats[i],dice)
+
+ctx.fillText(disp,x+18,y+17)
+
+}
+
+ctx.fillStyle="black"
+ctx.font="14px Arial"
+ctx.fillText(cats[i],x+18,295)
+
+}
+
+for(let p=0;p<numPlayers;p++){
+
+let total=0
+
+for(let c of cats){
+if(scores[p][c]!=null) total+=scores[p][c]
+}
+
+ctx.fillStyle=colors[p]
+ctx.fillText("P"+(p+1)+": "+total,20+p*120,470)
+
+}
+
+}
+
+}
+
+function loop(){
+update()
+draw()
+requestAnimationFrame(loop)
+}
+
+loop()
+
+</script>
+
+</body>
+</html>

@@ -3,141 +3,170 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Yatzy Multiplayer</title>
+    <title>Yatzy Pro - Online & Offline</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #1a202c; color: white; padding: 40px; }
-        .card { background: #2d3748; padding: 30px; border-radius: 15px; display: inline-block; box-shadow: 0 10px 15px rgba(0,0,0,0.3); min-width: 300px; }
+        body { font-family: 'Segoe UI', sans-serif; text-align: center; background: #1a202c; color: white; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: auto; background: #2d3748; padding: 20px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .dice-area { display: flex; justify-content: center; gap: 10px; margin: 20px 0; font-size: 3rem; }
+        .die { background: white; color: #1a202c; width: 60px; height: 60px; line-height: 60px; border-radius: 10px; cursor: pointer; border: 4px solid transparent; transition: 0.2s; font-weight: bold; }
+        .die.held { border-color: #f6e05e; background: #cbd5e0; transform: translateY(-5px); }
+        button { padding: 12px 20px; border-radius: 8px; border: none; background: #48bb78; color: white; font-weight: bold; cursor: pointer; margin: 5px; }
+        button.online-btn { background: #4299e1; }
         .hidden { display: none; }
-        input { padding: 12px; border-radius: 5px; border: none; width: 80%; margin-bottom: 10px; }
-        button { padding: 12px 24px; border-radius: 5px; border: none; background: #4299e1; color: white; font-weight: bold; cursor: pointer; margin: 5px; }
-        button:hover { background: #3182ce; }
-        #dice-display { font-size: 3rem; margin: 20px; color: #f6e05e; }
+        input { padding: 10px; border-radius: 5px; border: none; margin: 10px 0; width: 70%; }
+        table { width: 100%; margin-top: 20px; border-collapse: collapse; background: #1a202c; border-radius: 10px; overflow: hidden; }
+        td, th { padding: 10px; border: 1px solid #2d3748; }
+        .score-row:hover { background: #2d3748; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <div id="lobby" class="card">
-        <h1>🎲 Yatzy Online</h1>
-        <input type="text" id="playerName" placeholder="Enter Your Name">
-        <br>
-        <div id="menu-buttons">
-            <button onclick="setupHost()">Host Game</button>
-            <button onclick="showJoinInput()">Join Game</button>
+    <div class="container">
+        <h1>🎲 Yatzy Pro</h1>
+
+        <div id="menu">
+            <button onclick="startOffline()">Single Player</button>
+            <button class="online-btn" onclick="showOnlineMenu()">Play Online</button>
         </div>
 
-        <div id="host-zone" class="hidden">
-            <p>Room Code: <span id="roomCodeDisplay" style="font-size: 1.5rem; color: #63b3ed;"></span></p>
-            <p>Waiting for an opponent...</p>
+        <div id="online-menu" class="hidden">
+            <input type="text" id="playerName" placeholder="Your Name"><br>
+            <button onclick="hostGame()">Host Room</button>
+            <button onclick="showJoin()">Join Room</button>
+            <div id="join-input" class="hidden">
+                <input type="text" id="roomInput" placeholder="Enter 5-Digit Code">
+                <button onclick="joinGame()">Connect</button>
+            </div>
+            <p id="roomStatus"></p>
         </div>
 
-        <div id="join-zone" class="hidden">
-            <input type="text" id="joinCodeInput" placeholder="Enter 5-Digit Code">
-            <br>
-            <button onclick="joinGame()">Connect Now</button>
-        </div>
-    </div>
+        <div id="game-area" class="hidden">
+            <div class="dice-area">
+                <div class="die" id="d0" onclick="toggleHold(0)">?</div>
+                <div class="die" id="d1" onclick="toggleHold(1)">?</div>
+                <div class="die" id="d2" onclick="toggleHold(2)">?</div>
+                <div class="die" id="d3" onclick="toggleHold(3)">?</div>
+                <div class="die" id="d4" onclick="toggleHold(4)">?</div>
+            </div>
+            
+            <button id="roll-button" onclick="userRoll()">Roll Dice</button>
+            <p id="game-msg">Rolls left: 3</p>
 
-    <div id="game-screen" class="hidden">
-        <h2 id="game-status">Match Started!</h2>
-        <div id="dice-display">🎲</div>
-        <button id="rollBtn" onclick="rollDice()">Roll Dice</button>
-        <p id="opponent-info"></p>
+            <table>
+                <thead><tr><th>Category</th><th>Score</th></tr></thead>
+                <tbody id="score-body">
+                    <tr class="score-row" onclick="recordScore('Ones')"><td>Ones</td><td id="s-ones">-</td></tr>
+                    <tr class="score-row" onclick="recordScore('Twos')"><td>Twos</td><td id="s-twos">-</td></tr>
+                    <tr class="score-row" onclick="recordScore('Sixes')"><td>Sixes</td><td id="s-sixes">-</td></tr>
+                    <tr style="background: #4a5568;"><td><strong>Total</strong></td><td id="total-score">0</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <script>
-        // 1. YOUR DATABASE CONNECTION
+        // --- DATABASE CONNECTION ---
         const SUPABASE_URL = 'https://zdanffxnlufgnkmrsoxu.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_EwJMOJZo3kIwNc_MryrsWQ_puYbU3RG';
         const supabase = lib.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        let myName = "";
-        let currentRoom = null;
-        let isHost = false;
+        let dice = [0, 0, 0, 0, 0];
+        let held = [false, false, false, false, false];
+        let rollsLeft = 3;
+        let totalScore = 0;
+        let roomCode = null;
 
-        // 2. LOBBY LOGIC
-        function setupHost() {
-            myName = document.getElementById('playerName').value;
-            if (!myName) return alert("Enter a name!");
-            
-            isHost = true;
-            currentRoom = Math.floor(10000 + Math.random() * 90000).toString();
-            document.getElementById('roomCodeDisplay').innerText = currentRoom;
-            
-            document.getElementById('menu-buttons').classList.add('hidden');
-            document.getElementById('host-zone').classList.remove('hidden');
-            
-            createRoomInDatabase();
+        // --- NAVIGATION ---
+        function startOffline() {
+            document.getElementById('menu').classList.add('hidden');
+            document.getElementById('game-area').classList.remove('hidden');
         }
 
-        function showJoinInput() {
-            myName = document.getElementById('playerName').value;
-            if (!myName) return alert("Enter a name!");
-            document.getElementById('menu-buttons').classList.add('hidden');
-            document.getElementById('join-zone').classList.remove('hidden');
+        function showOnlineMenu() {
+            document.getElementById('menu').classList.add('hidden');
+            document.getElementById('online-menu').classList.remove('hidden');
         }
 
-        // 3. DATABASE ACTIONS
-        async function createRoomInDatabase() {
-            const { error } = await supabase
-                .from('rooms')
-                .insert([{ room_code: currentRoom, player_1: myName, status: 'waiting' }]);
+        function showJoin() { document.getElementById('join-input').classList.remove('hidden'); }
+
+        // --- CORE GAMEPLAY ---
+        function userRoll() {
+            if (rollsLeft <= 0) return alert("Pick a category to score!");
             
-            if (error) console.error(error);
-            listenForPlayers();
+            for (let i = 0; i < 5; i++) {
+                if (!held[i]) {
+                    dice[i] = Math.floor(Math.random() * 6) + 1; // Real random chance
+                }
+            }
+            rollsLeft--;
+            updateUI();
         }
 
-        async function joinGame() {
-            const code = document.getElementById('joinCodeInput').value;
-            const { error } = await supabase
-                .from('rooms')
-                .update({ player_2: myName, status: 'playing' })
-                .eq('room_code', code);
-
-            if (error) {
-                alert("Room not found!");
-            } else {
-                currentRoom = code;
-                switchToGame();
-                listenForDice();
+        function toggleHold(i) {
+            if (rollsLeft < 3 && rollsLeft > 0) {
+                held[i] = !held[i];
+                updateUI();
             }
         }
 
-        // 4. REALTIME LISTENERS
-        function listenForPlayers() {
-            supabase.channel('lobby')
-                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `room_code=eq.${currentRoom}` }, 
-                payload => {
-                    if (payload.new.player_2) {
-                        switchToGame();
-                        listenForDice();
-                    }
-                }).subscribe();
+        function updateUI() {
+            dice.forEach((val, i) => {
+                const el = document.getElementById(`d${i}`);
+                el.innerText = val === 0 ? "?" : val;
+                el.className = held[i] ? "die held" : "die";
+            });
+            document.getElementById('game-msg').innerText = `Rolls left: ${rollsLeft}`;
         }
 
-        function listenForDice() {
-            // This listens for when the OTHER player rolls
-            supabase.channel('game')
-                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `room_code=eq.${currentRoom}` }, 
-                payload => {
-                    if (payload.new.last_roll) {
-                        document.getElementById('dice-display').innerText = "🎲 " + payload.new.last_roll;
-                    }
-                }).subscribe();
-        }
-
-        // 5. GAMEPLAY
-        async function rollDice() {
-            const val = Math.floor(Math.random() * 6) + 1;
-            document.getElementById('dice-display').innerText = "🎲 " + val;
+        function recordScore(category) {
+            if (dice[0] === 0) return;
             
-            // Send roll to database so opponent sees it
-            await supabase.from('rooms').update({ last_roll: val }).eq('room_code', currentRoom);
+            let points = 0;
+            if (category === 'Ones') points = dice.filter(d => d === 1).length * 1;
+            if (category === 'Twos') points = dice.filter(d => d === 2).length * 2;
+            if (category === 'Sixes') points = dice.filter(d => d === 6).length * 6;
+
+            const cell = document.getElementById(`s-${category.toLowerCase()}`);
+            if (cell.innerText !== "-") return; // Already scored
+
+            cell.innerText = points;
+            totalScore += points;
+            document.getElementById('total-score').innerText = totalScore;
+            
+            resetTurn();
         }
 
-        function switchToGame() {
-            document.getElementById('lobby').classList.add('hidden');
-            document.getElementById('game-screen').classList.remove('hidden');
+        function resetTurn() {
+            dice = [0, 0, 0, 0, 0];
+            held = [false, false, false, false, false];
+            rollsLeft = 3;
+            updateUI();
+        }
+
+        // --- ONLINE FUNCTIONS ---
+        async function hostGame() {
+            const name = document.getElementById('playerName').value;
+            if (!name) return alert("Name required!");
+            roomCode = Math.floor(10000 + Math.random() * 90000).toString();
+            
+            await supabase.from('rooms').insert([{ room_code: roomCode, player_1: name, status: 'waiting' }]);
+            document.getElementById('roomStatus').innerText = `Your Code: ${roomCode}. Waiting...`;
+            listen();
+        }
+
+        async function joinGame() {
+            const name = document.getElementById('playerName').value;
+            const code = document.getElementById('roomInput').value;
+            const { error } = await supabase.from('rooms').update({ player_2: name, status: 'playing' }).eq('room_code', code);
+            if (error) return alert("Room error");
+            roomCode = code;
+            startOffline(); // Switches to game board
+        }
+
+        function listen() {
+            supabase.channel('room').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `room_code=eq.${roomCode}` }, 
+            payload => { if (payload.new.status === 'playing') startOffline(); }).subscribe();
         }
     </script>
 </body>

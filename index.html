@@ -29,7 +29,7 @@
         .total-row { background: #1a202c; font-weight: bold; }
 
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 100; }
-        .modal-content { background: var(--card); padding: 20px; border-radius: 15px; max-width: 85%; text-align: left; font-size: 0.9rem; }
+        .modal-content { background: var(--card); padding: 20px; border-radius: 15px; max-width: 85%; text-align: left; font-size: 0.9rem; max-height: 80vh; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -93,11 +93,13 @@
 <div id="tuto-modal" class="modal hidden">
     <div class="modal-content">
         <h3>Scoring Guide</h3>
+        <p><b>1s to 6s:</b> Sum of only the dice matching that number. <i>(Ex: three 5s = 15 pts)</i></p>
         <p><b>3K / 4K:</b> Sum of all dice if at least 3 or 4 match.</p>
         <p><b>FH (Full House):</b> 3 of one kind + 2 of another. (25 pts)</p>
         <p><b>SS (Small Straight):</b> 4 dice in sequence (e.g., 1-2-3-4). (30 pts)</p>
         <p><b>LS (Large Straight):</b> 5 dice in sequence (e.g., 1-2-3-4-5). (40 pts)</p>
         <p><b>Yatzy:</b> 5 of a kind. (50 pts)</p>
+        <p><b>Chance:</b> Sum of all 5 dice regardless of what they are.</p>
         <button class="btn-main" onclick="toggleTuto(false)">Close</button>
     </div>
 </div>
@@ -155,7 +157,7 @@
         const counts = {}; dice.forEach(x => counts[x] = (counts[x] || 0) + 1);
         const vals = Object.values(counts);
         const sum = dice.reduce((a,b) => a+b, 0);
-        if(cat <= 6) return (counts[cat] || 0) * cat;
+        if(!isNaN(cat)) return (counts[cat] || 0) * parseInt(cat);
         if(cat === '3k') return vals.some(v => v >= 3) ? sum : 0;
         if(cat === '4k') return vals.some(v => v >= 4) ? sum : 0;
         if(cat === 'fh') return vals.includes(3) && vals.includes(2) ? 25 : 0;
@@ -170,7 +172,7 @@
         const keys = ['1','2','3','4','5','6','3k','4k','fh','ss','ls','y','c'];
         keys.forEach(k => {
             const el = document.getElementById('row-'+k);
-            if(!scores[k]) { el.innerText = getPoints(k); el.className = 'ghost'; }
+            if(scores[k] === undefined) { el.innerText = getPoints(k); el.className = 'ghost'; }
         });
     }
 
@@ -179,8 +181,8 @@
         scores[k] = getPoints(k);
         const el = document.getElementById('row-'+k);
         el.innerText = scores[k]; el.className = 'solid';
-        let totalVal = Object.values(scores).reduce((a,b) => a+b, 0);
-        document.getElementById('total-val').innerText = totalVal;
+        let currentTotal = Object.values(scores).reduce((a,b) => a+b, 0);
+        document.getElementById('total-val').innerText = currentTotal;
         dice = [0,0,0,0,0]; held = [false,false,false,false,false]; rolls = 3;
         document.querySelectorAll('.ghost').forEach(g => g.innerText = "-");
         updateUI();

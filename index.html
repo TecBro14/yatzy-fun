@@ -6,19 +6,34 @@
     <title>Yatzy</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #1a202c; color: white; margin: 0; padding: 20px; }
-        .container { max-width: 400px; margin: auto; background: #2d3748; padding: 20px; border-radius: 15px; }
-        h1 { color: #f6e05e; margin-bottom: 20px; }
-        .menu-box { display: flex; flex-direction: column; gap: 10px; }
-        button { padding: 15px; border-radius: 10px; border: none; font-size: 1.1rem; font-weight: bold; cursor: pointer; background: #4a5568; color: white; }
-        .btn-green { background: #48bb78; }
-        .btn-blue { background: #4299e1; }
-        .btn-yellow { background: #f6e05e; color: #1a202c; width: 100%; }
+        :root { --bg: #1a202c; --card: #2d3748; --accent: #f6e05e; --green: #48bb78; --blue: #4299e1; }
+        body { font-family: system-ui, -apple-system, sans-serif; text-align: center; background: var(--bg); color: white; margin: 0; padding: 20px; touch-action: manipulation; }
+        .container { max-width: 450px; margin: auto; background: var(--card); padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .hidden { display: none !important; }
-        .dice-area { display: flex; justify-content: center; gap: 5px; margin: 20px 0; }
-        .die { background: white; color: black; width: 50px; height: 50px; line-height: 50px; border-radius: 8px; font-size: 1.5rem; font-weight: bold; border: 3px solid transparent; }
-        .die.held { border-color: #f6e05e; background: #cbd5e0; }
-        input { padding: 12px; border-radius: 8px; border: none; width: 85%; margin-bottom: 10px; }
+        
+        /* UI Elements */
+        h1 { color: var(--accent); margin-top: 0; }
+        button { padding: 14px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; margin: 5px; font-size: 1rem; transition: transform 0.1s; }
+        button:active { transform: scale(0.98); opacity: 0.9; }
+        .btn-main { background: var(--green); color: white; width: 80%; }
+        .btn-alt { background: var(--blue); color: white; width: 80%; }
+        .btn-roll { background: var(--accent); color: black; width: 100%; font-size: 1.2rem; }
+        input { padding: 14px; border-radius: 10px; width: 80%; margin-bottom: 12px; border: none; font-size: 1rem; }
+
+        /* Lobby */
+        .lobby-box { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; margin: 15px 0; }
+        #player-list { list-style: none; padding: 0; color: var(--accent); font-weight: bold; }
+
+        /* Game */
+        .dice-row { display: flex; justify-content: center; gap: 8px; margin: 20px 0; }
+        .die { background: white; color: black; width: 55px; height: 55px; line-height: 55px; border-radius: 10px; font-size: 1.8rem; font-weight: bold; border: 4px solid transparent; }
+        .die.held { border-color: var(--accent); background: #cbd5e0; }
+        
+        /* Score Table */
+        table { width: 100%; margin-top: 20px; border-collapse: collapse; background: rgba(0,0,0,0.3); border-radius: 10px; overflow: hidden; }
+        td { padding: 12px; border: 1px solid #4a5568; }
+        .clickable-score { cursor: pointer; color: var(--blue); font-weight: bold; }
+        .clickable-score:hover { background: rgba(255,255,255,0.1); }
     </style>
 </head>
 <body>
@@ -26,114 +41,126 @@
 <div class="container">
     <h1>Yatzy</h1>
 
-    <div id="menu-screen">
-        <div class="menu-box">
-            <button class="btn-green" onclick="startSinglePlayer()">Single Player</button>
-            <button class="btn-blue" onclick="showOnlineSetup()">Play Online</button>
+    <div id="screen-entry">
+        <input type="text" id="name-input" placeholder="Your Name">
+        <button class="btn-main" onclick="openLobby()">Play Online</button>
+    </div>
+
+    <div id="screen-lobby" class="hidden">
+        <div class="lobby-box">
+            <button class="btn-alt" id="host-btn" onclick="hostRoom()">Create New Room</button>
+            <div style="margin: 10px 0; opacity: 0.5;">— OR —</div>
+            <input type="text" id="code-input" placeholder="Enter 5-Digit Code">
+            <button class="btn-main" id="join-btn" onclick="joinRoom()">Connect</button>
+        </div>
+
+        <div id="waiting-area" class="hidden">
+            <h2 id="room-display">Code: -----</h2>
+            <div class="lobby-box">
+                <p>In Lobby:</p>
+                <ul id="player-list"></ul>
+            </div>
+            <button id="start-game-btn" class="btn-roll hidden" onclick="startGame()">START GAME</button>
+            <p id="wait-text" style="font-size: 0.8rem; opacity: 0.7;">Waiting for host to start...</p>
         </div>
     </div>
 
-    <div id="online-screen" class="hidden">
-        <input type="text" id="p-name" placeholder="Your Name">
-        <button class="btn-blue" onclick="doHost()">Host Room</button>
-        <button onclick="document.getElementById('join-box').classList.remove('hidden')">Join Room</button>
-        
-        <div id="join-box" class="hidden" style="margin-top:10px;">
-            <input type="text" id="r-code" placeholder="5-Digit Code">
-            <button class="btn-green" onclick="doJoin()">Connect</button>
+    <div id="screen-game" class="hidden">
+        <div class="dice-row">
+            <div class="die" id="d0" onclick="toggleDie(0)">?</div>
+            <div class="die" id="d1" onclick="toggleDie(1)">?</div>
+            <div class="die" id="d2" onclick="toggleDie(2)">?</div>
+            <div class="die" id="d3" onclick="toggleDie(3)">?</div>
+            <div class="die" id="d4" onclick="toggleDie(4)">?</div>
         </div>
-        <p id="status-msg" style="font-size: 0.8rem; color: #a0aec0;"></p>
-        <button onclick="location.reload()" style="background:none; margin-top:10px;">← Back</button>
-    </div>
+        <button class="btn-roll" onclick="rollDice()">Roll Dice</button>
+        <p id="roll-status">Rolls left: 3</p>
 
-    <div id="game-screen" class="hidden">
-        <div class="dice-area">
-            <div class="die" id="d0" onclick="hold(0)">?</div>
-            <div class="die" id="d1" onclick="hold(1)">?</div>
-            <div class="die" id="d2" onclick="hold(2)">?</div>
-            <div class="die" id="d3" onclick="hold(3)">?</div>
-            <div class="die" id="d4" onclick="hold(4)">?</div>
-        </div>
-        <button class="btn-yellow" onclick="roll()">Roll Dice</button>
-        <p id="roll-text">Rolls left: 3</p>
-        <button onclick="location.reload()" style="background:#e53e3e; margin-top:20px;">Quit</button>
+        <table>
+            <tr onclick="calcScore('ones')"><td>Ones</td><td id="s-ones" class="clickable-score">-</td></tr>
+            <tr onclick="calcScore('sixes')"><td>Sixes</td><td id="s-sixes" class="clickable-score">-</td></tr>
+            <tr style="background: #1a202c;"><td><strong>Total</strong></td><td id="s-total">0</td></tr>
+        </table>
+        <button onclick="location.reload()" style="background:none; color:grey; font-size:0.7rem; margin-top:20px;">Exit Game</button>
     </div>
 </div>
 
 <script>
-    // Variables
-    let dice = [0,0,0,0,0];
-    let held = [false,false,false,false,false];
-    let rolls = 3;
-    let client = null;
+    const URL = 'https://zdanffxnlufgnkmrsoxu.supabase.co';
+    const KEY = 'sb_publishable_EwJMOJZo3kIwNc_MryrsWQ_puYbU3RG';
+    const sb = supabase.createClient(URL, KEY);
 
-    // MENU NAVIGATION (NO DATABASE REQUIRED)
-    function startSinglePlayer() {
-        document.getElementById('menu-screen').classList.add('hidden');
-        document.getElementById('game-screen').classList.remove('hidden');
+    let myName = "", roomCode = null, isHost = false;
+    let dice = [0,0,0,0,0], held = [false,false,false,false,false], rolls = 3, score = 0;
+
+    // LOBBY LOGIC
+    function openLobby() {
+        myName = document.getElementById('name-input').value;
+        if(!myName) return alert("Enter a name!");
+        document.getElementById('screen-entry').classList.add('hidden');
+        document.getElementById('screen-lobby').classList.remove('hidden');
     }
 
-    function showOnlineSetup() {
-        document.getElementById('menu-screen').classList.add('hidden');
-        document.getElementById('online-screen').classList.remove('hidden');
-        initSupabase(); // Only try to connect now
+    async function hostRoom() {
+        roomCode = Math.floor(10000 + Math.random() * 90000).toString();
+        isHost = true;
+        const { error } = await sb.from('rooms').insert([{ room_code: roomCode, player_1: myName, status: 'waiting' }]);
+        if(!error) enterWaitingRoom();
     }
 
-    // GAMEPLAY
-    function roll() {
-        if (rolls <= 0) return;
-        for (let i = 0; i < 5; i++) {
-            if (!held[i]) dice[i] = Math.floor(Math.random() * 6) + 1;
-        }
-        rolls--;
-        render();
+    async function joinRoom() {
+        roomCode = document.getElementById('code-input').value;
+        const { error } = await sb.from('rooms').update({ player_2: myName }).eq('room_code', roomCode).select();
+        if(!error) enterWaitingRoom();
+        else alert("Room not found");
     }
 
-    function hold(i) {
-        if (rolls < 3 && rolls > 0) {
-            held[i] = !held[i];
-            render();
-        }
+    function enterWaitingRoom() {
+        document.getElementById('host-btn').parentElement.classList.add('hidden');
+        document.getElementById('waiting-area').classList.remove('hidden');
+        document.getElementById('room-display').innerText = "Code: " + roomCode;
+        if(isHost) document.getElementById('start-game-btn').classList.remove('hidden');
+        listen();
     }
 
-    function render() {
-        dice.forEach((v, i) => {
-            const el = document.getElementById('d' + i);
-            el.innerText = v || "?";
-            el.className = held[i] ? "die held" : "die";
-        });
-        document.getElementById('roll-text').innerText = "Rolls left: " + rolls;
-    }
-
-    // DATABASE LOGIC
-    function initSupabase() {
-        try {
-            const url = 'https://zdanffxnlufgnkmrsoxu.supabase.co';
-            const key = 'sb_publishable_EwJMOJZo3kIwNc_MryrsWQ_puYbU3RG';
-            client = supabase.createClient(url, key);
-        } catch (e) {
-            console.log("Offline mode only");
-        }
-    }
-
-    async function doHost() {
-        const name = document.getElementById('p-name').value;
-        if(!name) return alert("Name?");
-        const code = Math.floor(10000 + Math.random() * 90000).toString();
-        await client.from('rooms').insert([{ room_code: code, player_1: name, status: 'waiting' }]);
-        document.getElementById('status-msg').innerText = "Code: " + code + ". Waiting...";
-        
-        client.channel('room').on('postgres_changes', { event:'UPDATE', schema:'public', table:'rooms', filter:'room_code=eq.'+code }, payload => {
-            if(payload.new.player_2) startSinglePlayer();
+    function listen() {
+        sb.channel('lobby-watch').on('postgres_changes', { event:'*', schema:'public', table:'rooms', filter:`room_code=eq.${roomCode}` }, payload => {
+            const data = payload.new;
+            // Update Player List
+            const list = document.getElementById('player-list');
+            list.innerHTML = `<li>${data.player_1}</li>` + (data.player_2 ? `<li>${data.player_2}</li>` : "");
+            
+            // Start Game Trigger
+            if(data.status === 'playing') {
+                document.getElementById('screen-lobby').classList.add('hidden');
+                document.getElementById('screen-game').classList.remove('hidden');
+            }
         }).subscribe();
     }
 
-    async function doJoin() {
-        const name = document.getElementById('p-name').value;
-        const code = document.getElementById('r-code').value;
-        const { error } = await client.from('rooms').update({ player_2: name, status: 'playing' }).eq('room_code', code);
-        if(!error) startSinglePlayer();
+    async function startGame() {
+        await sb.from('rooms').update({ status: 'playing' }).eq('room_code', roomCode);
     }
-</script>
-</body>
-</html>
+
+    // GAMEPLAY LOGIC
+    function rollDice() {
+        if(rolls <= 0) return;
+        for(let i=0; i<5; i++) if(!held[i]) dice[i] = Math.floor(Math.random()*6)+1;
+        rolls--;
+        updateDiceUI();
+    }
+
+    function toggleDie(i) {
+        if(rolls < 3 && rolls > 0) {
+            held[i] = !held[i];
+            updateDiceUI();
+        }
+    }
+
+    function updateDiceUI() {
+        dice.forEach((v, i) => {
+            const el = document.getElementById('d'+i);
+            el.innerText = v || "?";
+            el.className = held[i] ? "die held" : "die";
+        });
+        document.getElementById('roll-status').

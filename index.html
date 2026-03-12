@@ -3,21 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Yatzy Pro - Online & Offline</title>
+    <title>Yatzy Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; text-align: center; background: #1a202c; color: white; margin: 0; padding: 20px; }
-        .container { max-width: 600px; margin: auto; background: #2d3748; padding: 20px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-        .dice-area { display: flex; justify-content: center; gap: 10px; margin: 20px 0; font-size: 3rem; }
-        .die { background: white; color: #1a202c; width: 60px; height: 60px; line-height: 60px; border-radius: 10px; cursor: pointer; border: 4px solid transparent; transition: 0.2s; font-weight: bold; }
-        .die.held { border-color: #f6e05e; background: #cbd5e0; transform: translateY(-5px); }
-        button { padding: 12px 20px; border-radius: 8px; border: none; background: #48bb78; color: white; font-weight: bold; cursor: pointer; margin: 5px; }
-        button.online-btn { background: #4299e1; }
-        .hidden { display: none; }
-        input { padding: 10px; border-radius: 5px; border: none; margin: 10px 0; width: 70%; }
-        table { width: 100%; margin-top: 20px; border-collapse: collapse; background: #1a202c; border-radius: 10px; overflow: hidden; }
-        td, th { padding: 10px; border: 1px solid #2d3748; }
-        .score-row:hover { background: #2d3748; cursor: pointer; }
+        body { font-family: 'Segoe UI', sans-serif; text-align: center; background: #1a202c; color: white; margin: 0; padding: 20px; touch-action: manipulation; }
+        .container { max-width: 500px; margin: auto; background: #2d3748; padding: 25px; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.5); }
+        
+        /* Menu Buttons */
+        .menu-box { display: flex; flex-direction: column; gap: 15px; }
+        button { padding: 15px; border-radius: 10px; border: none; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: transform 0.1s; }
+        button:active { transform: scale(0.95); }
+        
+        .btn-offline { background: #48bb78; color: white; }
+        .btn-online { background: #4299e1; color: white; }
+        .btn-action { background: #f6e05e; color: #1a202c; margin-top: 10px; }
+
+        .hidden { display: none !important; }
+        
+        /* Dice & UI */
+        .dice-area { display: flex; justify-content: center; gap: 8px; margin: 20px 0; }
+        .die { background: white; color: #1a202c; width: 55px; height: 55px; line-height: 55px; border-radius: 10px; font-size: 2rem; font-weight: bold; border: 4px solid transparent; }
+        .die.held { border-color: #f6e05e; background: #cbd5e0; }
+        
+        input { padding: 12px; border-radius: 8px; border: none; width: 80%; margin-bottom: 10px; font-size: 1rem; }
+        .status-text { color: #a0aec0; font-size: 0.9rem; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -25,20 +34,23 @@
     <div class="container">
         <h1>🎲 Yatzy Pro</h1>
 
-        <div id="menu">
-            <button onclick="startOffline()">Single Player</button>
-            <button class="online-btn" onclick="showOnlineMenu()">Play Online</button>
+        <div id="main-menu" class="menu-box">
+            <button class="btn-offline" onclick="startOffline()">Single Player</button>
+            <button class="btn-online" onclick="showOnlineMenu()">Play Online</button>
         </div>
 
-        <div id="online-menu" class="hidden">
-            <input type="text" id="playerName" placeholder="Your Name"><br>
-            <button onclick="hostGame()">Host Room</button>
-            <button onclick="showJoin()">Join Room</button>
-            <div id="join-input" class="hidden">
-                <input type="text" id="roomInput" placeholder="Enter 5-Digit Code">
-                <button onclick="joinGame()">Connect</button>
+        <div id="online-setup" class="menu-box hidden">
+            <input type="text" id="playerName" placeholder="Your Name">
+            <button class="btn-online" onclick="hostGame()">Host a Room</button>
+            <button class="btn-online" style="background:#718096" onclick="showJoinField()">Join a Room</button>
+            
+            <div id="join-field" class="hidden">
+                <input type="text" id="roomInput" placeholder="5-Digit Code">
+                <button class="btn-offline" onclick="joinGame()">Connect</button>
             </div>
-            <p id="roomStatus"></p>
+            
+            <p id="roomStatus" class="status-text"></p>
+            <button onclick="location.reload()" style="background:none; color:#a0aec0; font-size:0.8rem;">← Back</button>
         </div>
 
         <div id="game-area" class="hidden">
@@ -49,125 +61,40 @@
                 <div class="die" id="d3" onclick="toggleHold(3)">?</div>
                 <div class="die" id="d4" onclick="toggleHold(4)">?</div>
             </div>
-            
-            <button id="roll-button" onclick="userRoll()">Roll Dice</button>
-            <p id="game-msg">Rolls left: 3</p>
-
-            <table>
-                <thead><tr><th>Category</th><th>Score</th></tr></thead>
-                <tbody id="score-body">
-                    <tr class="score-row" onclick="recordScore('Ones')"><td>Ones</td><td id="s-ones">-</td></tr>
-                    <tr class="score-row" onclick="recordScore('Twos')"><td>Twos</td><td id="s-twos">-</td></tr>
-                    <tr class="score-row" onclick="recordScore('Sixes')"><td>Sixes</td><td id="s-sixes">-</td></tr>
-                    <tr style="background: #4a5568;"><td><strong>Total</strong></td><td id="total-score">0</td></tr>
-                </tbody>
-            </table>
+            <button id="roll-btn" class="btn-action" onclick="userRoll()">Roll Dice</button>
+            <p id="roll-count" class="status-text">Rolls left: 3</p>
+            <button onclick="location.reload()" style="background:#e53e3e; margin-top:30px;">Quit Game</button>
         </div>
     </div>
 
     <script>
-        // --- DATABASE CONNECTION ---
+        // --- DB SETUP ---
         const SUPABASE_URL = 'https://zdanffxnlufgnkmrsoxu.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_EwJMOJZo3kIwNc_MryrsWQ_puYbU3RG';
-        const supabase = lib.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        let dice = [0, 0, 0, 0, 0];
-        let held = [false, false, false, false, false];
+        let dice = [0,0,0,0,0];
+        let held = [false,false,false,false,false];
         let rollsLeft = 3;
-        let totalScore = 0;
         let roomCode = null;
 
-        // --- NAVIGATION ---
+        // --- MENU FUNCTIONS (The Fix) ---
         function startOffline() {
-            document.getElementById('menu').classList.add('hidden');
+            document.getElementById('main-menu').classList.add('hidden');
             document.getElementById('game-area').classList.remove('hidden');
         }
 
         function showOnlineMenu() {
-            document.getElementById('menu').classList.add('hidden');
-            document.getElementById('online-menu').classList.remove('hidden');
+            document.getElementById('main-menu').classList.add('hidden');
+            document.getElementById('online-setup').classList.remove('hidden');
         }
 
-        function showJoin() { document.getElementById('join-input').classList.remove('hidden'); }
+        function showJoinField() {
+            document.getElementById('join-field').classList.remove('hidden');
+        }
 
-        // --- CORE GAMEPLAY ---
+        // --- GAMEPLAY ---
         function userRoll() {
-            if (rollsLeft <= 0) return alert("Pick a category to score!");
-            
+            if (rollsLeft <= 0) return alert("No more rolls! (Scoreboard logic coming soon)");
             for (let i = 0; i < 5; i++) {
-                if (!held[i]) {
-                    dice[i] = Math.floor(Math.random() * 6) + 1; // Real random chance
-                }
-            }
-            rollsLeft--;
-            updateUI();
-        }
-
-        function toggleHold(i) {
-            if (rollsLeft < 3 && rollsLeft > 0) {
-                held[i] = !held[i];
-                updateUI();
-            }
-        }
-
-        function updateUI() {
-            dice.forEach((val, i) => {
-                const el = document.getElementById(`d${i}`);
-                el.innerText = val === 0 ? "?" : val;
-                el.className = held[i] ? "die held" : "die";
-            });
-            document.getElementById('game-msg').innerText = `Rolls left: ${rollsLeft}`;
-        }
-
-        function recordScore(category) {
-            if (dice[0] === 0) return;
-            
-            let points = 0;
-            if (category === 'Ones') points = dice.filter(d => d === 1).length * 1;
-            if (category === 'Twos') points = dice.filter(d => d === 2).length * 2;
-            if (category === 'Sixes') points = dice.filter(d => d === 6).length * 6;
-
-            const cell = document.getElementById(`s-${category.toLowerCase()}`);
-            if (cell.innerText !== "-") return; // Already scored
-
-            cell.innerText = points;
-            totalScore += points;
-            document.getElementById('total-score').innerText = totalScore;
-            
-            resetTurn();
-        }
-
-        function resetTurn() {
-            dice = [0, 0, 0, 0, 0];
-            held = [false, false, false, false, false];
-            rollsLeft = 3;
-            updateUI();
-        }
-
-        // --- ONLINE FUNCTIONS ---
-        async function hostGame() {
-            const name = document.getElementById('playerName').value;
-            if (!name) return alert("Name required!");
-            roomCode = Math.floor(10000 + Math.random() * 90000).toString();
-            
-            await supabase.from('rooms').insert([{ room_code: roomCode, player_1: name, status: 'waiting' }]);
-            document.getElementById('roomStatus').innerText = `Your Code: ${roomCode}. Waiting...`;
-            listen();
-        }
-
-        async function joinGame() {
-            const name = document.getElementById('playerName').value;
-            const code = document.getElementById('roomInput').value;
-            const { error } = await supabase.from('rooms').update({ player_2: name, status: 'playing' }).eq('room_code', code);
-            if (error) return alert("Room error");
-            roomCode = code;
-            startOffline(); // Switches to game board
-        }
-
-        function listen() {
-            supabase.channel('room').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `room_code=eq.${roomCode}` }, 
-            payload => { if (payload.new.status === 'playing') startOffline(); }).subscribe();
-        }
-    </script>
-</body>
-</html>
+                if (!held[i]) dice[i] = Math.floor(Math.random() * 6)

@@ -2,168 +2,138 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Yatzy</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; text-align: center; background: #1a202c; color: white; margin: 0; padding: 20px; touch-action: manipulation; }
-        .container { max-width: 450px; margin: auto; background: #2d3748; padding: 25px; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.5); }
-        
-        h1 { margin-top: 0; color: #f6e05e; }
-        .menu-box { display: flex; flex-direction: column; gap: 15px; }
-        
-        button { padding: 15px; border-radius: 10px; border: none; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: background 0.2s; }
-        button:active { opacity: 0.8; }
-        
-        .btn-offline { background: #48bb78; color: white; }
-        .btn-online { background: #4299e1; color: white; }
-        .btn-roll { background: #f6e05e; color: #1a202c; width: 100%; margin-top: 10px; }
-
+        body { font-family: sans-serif; text-align: center; background: #1a202c; color: white; margin: 0; padding: 20px; }
+        .container { max-width: 400px; margin: auto; background: #2d3748; padding: 20px; border-radius: 15px; }
+        h1 { color: #f6e05e; margin-bottom: 20px; }
+        .menu-box { display: flex; flex-direction: column; gap: 10px; }
+        button { padding: 15px; border-radius: 10px; border: none; font-size: 1.1rem; font-weight: bold; cursor: pointer; background: #4a5568; color: white; }
+        .btn-green { background: #48bb78; }
+        .btn-blue { background: #4299e1; }
+        .btn-yellow { background: #f6e05e; color: #1a202c; width: 100%; }
         .hidden { display: none !important; }
-        
-        .dice-area { display: flex; justify-content: center; gap: 8px; margin: 20px 0; }
-        .die { background: white; color: #1a202c; width: 55px; height: 55px; line-height: 55px; border-radius: 10px; font-size: 2rem; font-weight: bold; border: 4px solid transparent; }
+        .dice-area { display: flex; justify-content: center; gap: 5px; margin: 20px 0; }
+        .die { background: white; color: black; width: 50px; height: 50px; line-height: 50px; border-radius: 8px; font-size: 1.5rem; font-weight: bold; border: 3px solid transparent; }
         .die.held { border-color: #f6e05e; background: #cbd5e0; }
-        
-        input { padding: 12px; border-radius: 8px; border: none; width: 90%; margin-bottom: 10px; font-size: 1rem; }
-        .status-text { color: #a0aec0; font-size: 0.9rem; margin: 10px 0; }
+        input { padding: 12px; border-radius: 8px; border: none; width: 85%; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h1>Yatzy</h1>
+<div class="container">
+    <h1>Yatzy</h1>
 
-        <div id="ui-main-menu" class="menu-box">
-            <button class="btn-offline" onclick="goToSinglePlayer()">Single Player</button>
-            <button class="btn-online" onclick="goToOnlineMenu()">Play Online</button>
-        </div>
-
-        <div id="ui-online-setup" class="menu-box hidden">
-            <input type="text" id="input-player-name" placeholder="Your Name">
-            <button class="btn-online" onclick="startHosting()">Host Room</button>
-            <button class="btn-online" style="background:#718096" onclick="showJoinBox()">Join Room</button>
-            
-            <div id="ui-join-box" class="hidden">
-                <input type="text" id="input-room-code" placeholder="5-Digit Code">
-                <button class="btn-offline" onclick="startJoining()">Connect</button>
-            </div>
-            
-            <p id="txt-room-status" class="status-text"></p>
-            <button onclick="window.location.reload()" style="background:none; color:#a0aec0;">← Back</button>
-        </div>
-
-        <div id="ui-game-area" class="hidden">
-            <div class="dice-area">
-                <div class="die" id="d0" onclick="toggleHoldDie(0)">?</div>
-                <div class="die" id="d1" onclick="toggleHoldDie(1)">?</div>
-                <div class="die" id="d2" onclick="toggleHoldDie(2)">?</div>
-                <div class="die" id="d3" onclick="toggleHoldDie(3)">?</div>
-                <div class="die" id="d4" onclick="toggleHoldDie(4)">?</div>
-            </div>
-            <button id="btn-roll" class="btn-roll" onclick="rollDiceAction()">Roll Dice</button>
-            <p id="txt-roll-count" class="status-text">Rolls left: 3</p>
-            <button onclick="window.location.reload()" style="background:#e53e3e; margin-top:20px; font-size:0.8rem;">Quit</button>
+    <div id="menu-screen">
+        <div class="menu-box">
+            <button class="btn-green" onclick="startSinglePlayer()">Single Player</button>
+            <button class="btn-blue" onclick="showOnlineSetup()">Play Online</button>
         </div>
     </div>
 
-    <script>
-        // --- INITIALIZATION ---
-        const DB_URL = 'https://zdanffxnlufgnkmrsoxu.supabase.co';
-        const DB_KEY = 'sb_publishable_EwJMOJZo3kIwNc_MryrsWQ_puYbU3RG';
+    <div id="online-screen" class="hidden">
+        <input type="text" id="p-name" placeholder="Your Name">
+        <button class="btn-blue" onclick="doHost()">Host Room</button>
+        <button onclick="document.getElementById('join-box').classList.remove('hidden')">Join Room</button>
         
-        // Use the library's internal createClient to avoid naming conflicts
-        const dbClient = supabase.createClient(DB_URL, DB_KEY);
+        <div id="join-box" class="hidden" style="margin-top:10px;">
+            <input type="text" id="r-code" placeholder="5-Digit Code">
+            <button class="btn-green" onclick="doJoin()">Connect</button>
+        </div>
+        <p id="status-msg" style="font-size: 0.8rem; color: #a0aec0;"></p>
+        <button onclick="location.reload()" style="background:none; margin-top:10px;">← Back</button>
+    </div>
 
-        let gameDice = [0,0,0,0,0];
-        let diceHeld = [false,false,false,false,false];
-        let rollsRemaining = 3;
-        let activeRoom = null;
+    <div id="game-screen" class="hidden">
+        <div class="dice-area">
+            <div class="die" id="d0" onclick="hold(0)">?</div>
+            <div class="die" id="d1" onclick="hold(1)">?</div>
+            <div class="die" id="d2" onclick="hold(2)">?</div>
+            <div class="die" id="d3" onclick="hold(3)">?</div>
+            <div class="die" id="d4" onclick="hold(4)">?</div>
+        </div>
+        <button class="btn-yellow" onclick="roll()">Roll Dice</button>
+        <p id="roll-text">Rolls left: 3</p>
+        <button onclick="location.reload()" style="background:#e53e3e; margin-top:20px;">Quit</button>
+    </div>
+</div>
 
-        // --- MENU NAVIGATION ---
-        function goToSinglePlayer() {
-            document.getElementById('ui-main-menu').classList.add('hidden');
-            document.getElementById('ui-game-area').classList.remove('hidden');
+<script>
+    // Variables
+    let dice = [0,0,0,0,0];
+    let held = [false,false,false,false,false];
+    let rolls = 3;
+    let client = null;
+
+    // MENU NAVIGATION (NO DATABASE REQUIRED)
+    function startSinglePlayer() {
+        document.getElementById('menu-screen').classList.add('hidden');
+        document.getElementById('game-screen').classList.remove('hidden');
+    }
+
+    function showOnlineSetup() {
+        document.getElementById('menu-screen').classList.add('hidden');
+        document.getElementById('online-screen').classList.remove('hidden');
+        initSupabase(); // Only try to connect now
+    }
+
+    // GAMEPLAY
+    function roll() {
+        if (rolls <= 0) return;
+        for (let i = 0; i < 5; i++) {
+            if (!held[i]) dice[i] = Math.floor(Math.random() * 6) + 1;
         }
+        rolls--;
+        render();
+    }
 
-        function goToOnlineMenu() {
-            document.getElementById('ui-main-menu').classList.add('hidden');
-            document.getElementById('ui-online-setup').classList.remove('hidden');
+    function hold(i) {
+        if (rolls < 3 && rolls > 0) {
+            held[i] = !held[i];
+            render();
         }
+    }
 
-        function showJoinBox() {
-            document.getElementById('ui-join-box').classList.remove('hidden');
+    function render() {
+        dice.forEach((v, i) => {
+            const el = document.getElementById('d' + i);
+            el.innerText = v || "?";
+            el.className = held[i] ? "die held" : "die";
+        });
+        document.getElementById('roll-text').innerText = "Rolls left: " + rolls;
+    }
+
+    // DATABASE LOGIC
+    function initSupabase() {
+        try {
+            const url = 'https://zdanffxnlufgnkmrsoxu.supabase.co';
+            const key = 'sb_publishable_EwJMOJZo3kIwNc_MryrsWQ_puYbU3RG';
+            client = supabase.createClient(url, key);
+        } catch (e) {
+            console.log("Offline mode only");
         }
+    }
 
-        // --- GAME LOGIC ---
-        function rollDiceAction() {
-            if (rollsRemaining <= 0) return alert("No more rolls left!");
-            
-            for (let i = 0; i < 5; i++) {
-                if (!diceHeld[i]) {
-                    gameDice[i] = Math.floor(Math.random() * 6) + 1;
-                }
-            }
-            rollsRemaining--;
-            refreshGameUI();
-        }
+    async function doHost() {
+        const name = document.getElementById('p-name').value;
+        if(!name) return alert("Name?");
+        const code = Math.floor(10000 + Math.random() * 90000).toString();
+        await client.from('rooms').insert([{ room_code: code, player_1: name, status: 'waiting' }]);
+        document.getElementById('status-msg').innerText = "Code: " + code + ". Waiting...";
+        
+        client.channel('room').on('postgres_changes', { event:'UPDATE', schema:'public', table:'rooms', filter:'room_code=eq.'+code }, payload => {
+            if(payload.new.player_2) startSinglePlayer();
+        }).subscribe();
+    }
 
-        function toggleHoldDie(i) {
-            if (rollsRemaining < 3 && rollsRemaining > 0) {
-                diceHeld[i] = !diceHeld[i];
-                refreshGameUI();
-            }
-        }
-
-        function refreshGameUI() {
-            gameDice.forEach((val, i) => {
-                const el = document.getElementById(`d${i}`);
-                el.innerText = val || "?";
-                el.className = diceHeld[i] ? "die held" : "die";
-            });
-            document.getElementById('txt-roll-count').innerText = `Rolls left: ${rollsRemaining}`;
-        }
-
-        // --- DATABASE LOGIC ---
-        async function startHosting() {
-            const name = document.getElementById('input-player-name').value;
-            if (!name) return alert("Please enter your name!");
-            
-            activeRoom = Math.floor(10000 + Math.random() * 90000).toString();
-            
-            const { error } = await dbClient.from('rooms').insert([{ 
-                room_code: activeRoom, player_1: name, status: 'waiting' 
-            }]);
-
-            if (error) return alert("Error: " + error.message);
-            
-            document.getElementById('txt-room-status').innerText = `Room Code: ${activeRoom}. Waiting...`;
-            
-            // Listen for Player 2
-            dbClient.channel('waiting-room').on('postgres_changes', { 
-                event: 'UPDATE', schema: 'public', table: 'rooms', filter: `room_code=eq.${activeRoom}` 
-            }, payload => {
-                if (payload.new.player_2) {
-                    document.getElementById('ui-online-setup').classList.add('hidden');
-                    document.getElementById('ui-game-area').classList.remove('hidden');
-                }
-            }).subscribe();
-        }
-
-        async function startJoining() {
-            const name = document.getElementById('input-player-name').value;
-            const code = document.getElementById('input-room-code').value;
-            if (!name || !code) return alert("Enter name and code!");
-
-            const { error } = await dbClient.from('rooms').update({ 
-                player_2: name, status: 'playing' 
-            }).eq('room_code', code);
-
-            if (error) return alert("Room not found!");
-            
-            document.getElementById('ui-online-setup').classList.add('hidden');
-            document.getElementById('ui-game-area').classList.remove('hidden');
-        }
-    </script>
+    async function doJoin() {
+        const name = document.getElementById('p-name').value;
+        const code = document.getElementById('r-code').value;
+        const { error } = await client.from('rooms').update({ player_2: name, status: 'playing' }).eq('room_code', code);
+        if(!error) startSinglePlayer();
+    }
+</script>
 </body>
 </html>

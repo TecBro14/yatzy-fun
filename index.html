@@ -8,13 +8,15 @@
     <style>
         :root { --bg: #1a202c; --card: #2d3748; --accent: #f6e05e; --green: #48bb78; --blue: #4299e1; --ghost: rgba(246, 224, 94, 0.3); }
         body { font-family: system-ui, sans-serif; text-align: center; background: var(--bg); color: white; margin: 0; padding: 10px; touch-action: manipulation; }
-        .container { max-width: 450px; margin: auto; background: var(--card); padding: 15px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .container { max-width: 450px; margin: auto; background: var(--card); padding: 15px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); position: relative; }
         .hidden { display: none !important; }
         
         button { padding: 12px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; margin: 5px; font-size: 1rem; width: 85%; }
         .btn-main { background: var(--green); color: white; }
         .btn-online { background: var(--blue); color: white; }
         .btn-roll { background: var(--accent); color: black; width: 100%; font-size: 1.2rem; margin: 15px 0; }
+
+        .back-arrow { position: absolute; top: 15px; left: 15px; cursor: pointer; font-size: 1.5rem; color: #a0aec0; background: none; border: none; width: auto; padding: 0; margin: 0; }
 
         .dice-row { display: flex; justify-content: center; gap: 6px; margin: 15px 0; }
         .die { background: white; color: black; width: 50px; height: 50px; line-height: 50px; border-radius: 8px; font-size: 1.6rem; font-weight: bold; border: 4px solid transparent; }
@@ -35,6 +37,7 @@
 <body>
 
 <div class="container">
+    <button class="back-arrow hidden" id="global-back" onclick="location.reload()">←</button>
     <h1>Yatzy</h1>
 
     <div id="screen-menu">
@@ -53,7 +56,6 @@
             <ul id="p-list" style="list-style:none; padding:0;"></ul>
             <button id="host-start" class="btn-roll hidden" onclick="triggerStart()">START GAME</button>
         </div>
-        <button onclick="location.reload()" style="background:none; color:grey;">← Back</button>
     </div>
 
     <div id="screen-game" class="hidden">
@@ -110,11 +112,21 @@
     const sb = supabase.createClient(URL, KEY);
 
     let dice = [0,0,0,0,0], held = [false,false,false,false,false], rolls = 3;
-    let scores = {}, roomCode = null, isHost = false;
+    let savedScores = {}, roomCode = null, isHost = false;
 
     function toggleTuto(s) { document.getElementById('tuto-modal').classList.toggle('hidden', !s); }
-    function startSingle() { document.getElementById('screen-menu').classList.add('hidden'); document.getElementById('screen-game').classList.remove('hidden'); }
-    function showOnline() { document.getElementById('screen-menu').classList.add('hidden'); document.getElementById('screen-online').classList.remove('hidden'); }
+    
+    function startSingle() { 
+        document.getElementById('screen-menu').classList.add('hidden'); 
+        document.getElementById('screen-game').classList.remove('hidden');
+        document.getElementById('global-back').classList.remove('hidden');
+    }
+    
+    function showOnline() { 
+        document.getElementById('screen-menu').classList.add('hidden'); 
+        document.getElementById('screen-online').classList.remove('hidden');
+        document.getElementById('global-back').classList.remove('hidden');
+    }
 
     async function hostRoom() {
         const n = document.getElementById('name-in').value; if(!n) return alert("Name!");
@@ -142,22 +154,37 @@
 
     function rollDice() {
         if(rolls <= 0) return;
-        for(let i=0; i<5; i++) if(!held[i]) dice[i] = Math.floor(Math.random()*6)+1;
-        rolls--; updateUI(); showGhosts();
+        for(let i=0; i<5; i++) {
+            if(!held[i]) dice[i] = Math.floor(Math.random()*6)+1;
+        }
+        rolls--; 
+        updateUI(); 
+        showGhosts();
     }
 
-    function toggleDie(i) { if(rolls < 3 && rolls > 0) { held[i] = !held[i]; updateUI(); } }
+    function toggleDie(i) { 
+        if(rolls < 3 && rolls >= 0 && dice[0] !== 0) { 
+            held[i] = !held[i]; 
+            updateUI(); 
+        } 
+    }
 
     function updateUI() {
-        dice.forEach((v, i) => { const el = document.getElementById('d'+i); el.innerText = v || "?"; el.className = held[i] ? "die held" : "die"; });
+        dice.forEach((v, i) => { 
+            const el = document.getElementById('d'+i); 
+            el.innerText = v || "?"; 
+            el.className = held[i] ? "die held" : "die"; 
+        });
         document.getElementById('roll-status').innerText = "Rolls left: " + rolls;
     }
 
     function getPoints(cat) {
-        const counts = {}; dice.forEach(x => counts[x] = (counts[x] || 0) + 1);
+        const counts = {}; 
+        dice.forEach(x => counts[x] = (counts[x] || 0) + 1);
         const vals = Object.values(counts);
         const sum = dice.reduce((a,b) => a+b, 0);
-        if(!isNaN(cat)) return (counts[cat] || 0) * parseInt(cat);
+
+        if(!isNaN(cat)) return (counts[parseInt(cat)] || 0) * parseInt(cat);
         if(cat === '3k') return vals.some(v => v >= 3) ? sum : 0;
         if(cat === '4k') return vals.some(v => v >= 4) ? sum : 0;
         if(cat === 'fh') return vals.includes(3) && vals.includes(2) ? 25 : 0;
@@ -172,18 +199,27 @@
         const keys = ['1','2','3','4','5','6','3k','4k','fh','ss','ls','y','c'];
         keys.forEach(k => {
             const el = document.getElementById('row-'+k);
-            if(scores[k] === undefined) { el.innerText = getPoints(k); el.className = 'ghost'; }
+            if(savedScores[k] === undefined) { 
+                el.innerText = getPoints(k); 
+                el.className = 'ghost'; 
+            }
         });
     }
 
     function confirmScore(k) {
-        if(dice[0] === 0 || scores[k] !== undefined) return;
-        scores[k] = getPoints(k);
+        if(dice[0] === 0 || savedScores[k] !== undefined) return;
+        savedScores[k] = getPoints(k);
         const el = document.getElementById('row-'+k);
-        el.innerText = scores[k]; el.className = 'solid';
-        let currentTotal = Object.values(scores).reduce((a,b) => a+b, 0);
+        el.innerText = savedScores[k]; 
+        el.className = 'solid';
+        
+        let currentTotal = Object.values(savedScores).reduce((a,b) => a+b, 0);
         document.getElementById('total-val').innerText = currentTotal;
-        dice = [0,0,0,0,0]; held = [false,false,false,false,false]; rolls = 3;
+        
+        // Reset turn
+        dice = [0,0,0,0,0]; 
+        held = [false,false,false,false,false]; 
+        rolls = 3;
         document.querySelectorAll('.ghost').forEach(g => g.innerText = "-");
         updateUI();
     }
